@@ -805,34 +805,35 @@ tr:last-child td { border-bottom:none; }
         <button class="btn btn-secondary btn-sm" onclick="saveDefaultDate()">Simpan Tanggal</button>
       </div>
 
-      <!-- GITHUB SETTINGS -->
+      <!-- JSONBIN SETTINGS -->
       <div class="card">
         <div class="card-title">🗄️ Koneksi JSONBin</div>
-        <!-- Banner: muncul jika config hardcoded -->
-        <div id="gh-hardcoded-banner" style="display:none;background:rgba(110,231,183,0.07);border:1px solid rgba(110,231,183,0.25);border-radius:12px;padding:10px 12px;font-size:11px;color:var(--accent2);line-height:1.6;margin-bottom:12px">
-          ✅ <b>Terhubung ke JSONBin.io.</b><br>
-          Semua device langsung bisa akses tanpa setup.<br>
-          Untuk ubah config, edit konstanta di bagian atas <b>index.html</b> lalu upload ulang.
-        </div>
+        <div id="gh-hardcoded-banner" style="display:none"></div>
         <div class="github-config-info">
-          Data absensi &amp; anggota tim disimpan di GitHub repo sebagai JSON.<br>
-          <b>Token:</b> Personal Access Token (scopes: <b>repo</b>)<br>
-          <b>File data:</b> <b>absensi-data.json</b> &amp; <b>absensi-team.json</b>
+          Simpan <b>Bin ID</b> dari JSONBin.io agar semua device bisa sync tanpa setup ulang.<br>
+          <b>X-Master-Key</b> sudah tertanam di file · Bin ID disimpan di sini.
         </div>
-        <div class="field-label">GitHub Token (PAT)</div>
-        <div class="field"><input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx"></div>
-        <div class="field-label">Owner / Username</div>
-        <div class="field"><input type="text" id="gh-owner" placeholder="username-github"></div>
-        <div class="field-label">Nama Repository</div>
-        <div class="field"><input type="text" id="gh-repo" placeholder="nama-repo"></div>
-        <div class="field-label">Folder Path Foto (opsional)</div>
-        <div class="field"><input type="text" id="gh-path" placeholder="foto-absensi/"></div>
-        <div class="field-label">Branch</div>
-        <div class="field"><input type="text" id="gh-branch" placeholder="main"></div>
-        <button class="btn btn-primary btn-sm" onclick="saveGithubConfig()" style="margin-bottom:8px">💾 Simpan Konfigurasi</button>
-        <button class="btn btn-ghost btn-sm" onclick="testGithubConfig()" style="margin-bottom:8px">🔗 Test Koneksi</button>
-        <button class="btn btn-secondary btn-sm" onclick="syncAll()">⟳ Sync Manual</button>
+
+        <div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:10px 12px;font-size:11px;color:#d4a04a;line-height:1.7;margin-bottom:14px">
+          📋 <b>Cara dapat Bin ID:</b><br>
+          1. Login ke <b>jsonbin.io</b><br>
+          2. Klik <b>Bins</b> → pilih bin <b>absensi-data</b><br>
+          3. Copy ID dari URL atau info bin (contoh: <b>6650abc123...</b>)<br>
+          4. Ulangi untuk bin <b>absensi-team</b>
+        </div>
+
+        <div class="field-label">Bin ID — Data Absensi</div>
+        <div class="field"><input type="text" id="jb-bin-data" placeholder="6650a1234abc56def7890123" style="font-family:var(--mono);font-size:12px"></div>
+        <div class="field-label">Bin ID — Data Tim</div>
+        <div class="field"><input type="text" id="jb-bin-team" placeholder="6650b9876xyz12abc3456789" style="font-family:var(--mono);font-size:12px"></div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="saveJBConfig()" style="margin-bottom:8px">💾 Simpan Bin ID</button>
+          <button class="btn btn-ghost btn-sm" onclick="testGithubConfig()" style="margin-bottom:8px">🔗 Test Koneksi</button>
+          <button class="btn btn-secondary btn-sm" onclick="syncAll()">⟳ Sync Manual</button>
+        </div>
         <div id="gh-test-result" style="margin-top:8px;display:none"></div>
+        <div id="jb-current-ids" style="margin-top:10px;font-size:10px;color:var(--muted);font-family:var(--mono);line-height:1.8"></div>
       </div>
 
       <div class="card">
@@ -901,8 +902,12 @@ const CACHE_TTL  = 30 * 1000;
 
 // ─── JSONBIN CONFIG ───────────────────────────────────────
 // Ganti dengan Master Key JSONBin kamu
-const JB_MASTER_KEY = "$2a$10$TGsxXgBx/PRs2.mXtFL89.yNU89HNkDvlUqnGk8cLSudxvRiXPvny";
-const JB_API_BASE   = "https://api.jsonbin.io/v3/b";
+const JB_MASTER_KEY  = "$2a$10$TGsxXgBx/PRs2.mXtFL89.yNU89HNkDvlUqnGk8cLSudxvRiXPvny";
+const JB_API_BASE    = "https://api.jsonbin.io/v3/b";
+// Bin ID hardcoded — diisi via panel Admin setelah buat bin di JSONBin
+// Kosongkan dulu, isi via Admin → Koneksi JSONBin setelah setup
+const JB_BIN_DATA_HC = "";  // contoh: "6650a1234abc56def7890123"
+const JB_BIN_TEAM_HC = "";  // contoh: "6650b9876xyz12abc3456789"
 // ─────────────────────────────────────────────────────────
 
 let currentPhoto    = null;
@@ -1005,18 +1010,23 @@ async function jbWrite(binId, payload) {
   }
 }
 
-// Pastikan bin ada — buat kalau belum ada, simpan ID ke localStorage
+// Pastikan bin ada — cek hardcode dulu, lalu localStorage, lalu buat baru
 async function ensureBin(key, name, defaultVal) {
+  // 1. Cek konstanta hardcoded di file
+  if (key === 'data' && JB_BIN_DATA_HC) { setBinId('data', JB_BIN_DATA_HC); return JB_BIN_DATA_HC; }
+  if (key === 'team' && JB_BIN_TEAM_HC) { setBinId('team', JB_BIN_TEAM_HC); return JB_BIN_TEAM_HC; }
+  // 2. Cek localStorage (dari Admin panel)
   let id = getBinId(key);
-  if (!id) {
-    setSyncStatus('syncing', `Membuat bin ${name}…`);
-    id = await jbCreate(name, defaultVal);
-    if (id) {
-      setBinId(key, id);
-      console.log(`Bin created: ${name} = ${id}`);
-    }
+  if (id) return id;
+  // 3. Coba buat bin baru
+  setSyncStatus('syncing', `Membuat bin ${name}…`);
+  id = await jbCreate(name, defaultVal);
+  if (id) {
+    setBinId(key, id);
+    console.log(`Bin created: ${name} = ${id}`);
+    return id;
   }
-  return id || null;
+  return null;
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
@@ -1154,32 +1164,36 @@ function hideLoadingOverlay() {
 }
 
 // ─── ADMIN PANEL — CONFIG SECTION ─────────────────────────
-function saveGithubConfig() {
-  toast('✓ Menggunakan JSONBin. Token sudah tertanam di file.');
+function saveJBConfig() {
+  const binData = document.getElementById('jb-bin-data').value.trim();
+  const binTeam = document.getElementById('jb-bin-team').value.trim();
+  if (!binData || !binTeam) { toast('⚠️ Kedua Bin ID wajib diisi'); return; }
+  setBinId('data', binData);
+  setBinId('team', binTeam);
+  toast('✓ Bin ID disimpan! Sync sekarang…');
+  loadGithubConfigFields();
+  syncAll();
 }
 
+function saveGithubConfig() { saveJBConfig(); }
+
 function loadGithubConfigFields() {
-  const dataBinId = getBinId('data') || '(belum dibuat)';
-  const teamBinId = getBinId('team') || '(belum dibuat)';
-  const banner = document.getElementById('gh-hardcoded-banner');
-  if (banner) {
-    banner.style.display = 'block';
-    banner.innerHTML = `✅ <b>Terhubung ke JSONBin.io</b><br>
-      Token tertanam di file · Data real-time multi-device<br>
-      <span style="font-family:var(--mono);font-size:10px;opacity:0.7">
-        Data Bin: ${dataBinId}<br>Team Bin: ${teamBinId}
-      </span>`;
+  const dataBinId = getBinId('data') || '';
+  const teamBinId = getBinId('team') || '';
+  const dataEl = document.getElementById('jb-bin-data');
+  const teamEl = document.getElementById('jb-bin-team');
+  if (dataEl && dataBinId) dataEl.value = dataBinId;
+  if (teamEl && teamBinId) teamEl.value = teamBinId;
+  const cur = document.getElementById('jb-current-ids');
+  if (cur) {
+    if (dataBinId && teamBinId) {
+      cur.innerHTML = `✅ Tersimpan:<br>Data: ${dataBinId}<br>Team: ${teamBinId}`;
+      cur.style.color = 'var(--accent2)';
+    } else {
+      cur.innerHTML = '⚠️ Bin ID belum diisi — isi lalu klik Simpan';
+      cur.style.color = 'var(--danger)';
+    }
   }
-  ['gh-token','gh-owner','gh-repo','gh-branch','gh-path'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.disabled = true;
-    if (id === 'gh-token') el.value = '*** JSONBin Master Key (hardcoded) ***';
-    else if (id === 'gh-owner') el.value = 'jsonbin.io';
-    else if (id === 'gh-repo') el.value = `Data: ${dataBinId}`;
-    else if (id === 'gh-branch') el.value = 'JSONBin Cloud';
-    else if (id === 'gh-path') el.value = `Team: ${teamBinId}`;
-  });
 }
 
 async function testGithubConfig() {
@@ -1188,13 +1202,17 @@ async function testGithubConfig() {
   el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi JSONBin…</div>';
   const id = getBinId('data');
   if (!id) {
-    el.innerHTML = '<div class="github-status err">⚠️ Bin belum ada. Coba refresh halaman.</div>';
+    el.innerHTML = '<div class="github-status err">⚠️ Isi Bin ID dulu lalu klik Simpan.</div>';
     return;
   }
   try {
     const res = await fetch(`${JB_API_BASE}/${id}/latest`, { headers: jbHeaders() });
-    if (res.ok) el.innerHTML = '<div class="github-status ok">✓ Koneksi JSONBin berhasil!</div>';
-    else el.innerHTML = `<div class="github-status err">✕ Error ${res.status}: ${res.statusText}</div>`;
+    if (res.ok) {
+      el.innerHTML = '<div class="github-status ok">✓ Koneksi JSONBin berhasil! Data tersinkron.</div>';
+    } else {
+      const txt = await res.text();
+      el.innerHTML = `<div class="github-status err">✕ Error ${res.status}: ${res.statusText}<br><small>${txt.slice(0,120)}</small></div>`;
+    }
   } catch(e) {
     el.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
   }
