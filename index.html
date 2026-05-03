@@ -808,6 +808,12 @@ tr:last-child td { border-bottom:none; }
       <!-- GITHUB SETTINGS -->
       <div class="card">
         <div class="card-title">🐙 Koneksi GitHub</div>
+        <!-- Banner: muncul jika config hardcoded -->
+        <div id="gh-hardcoded-banner" style="display:none;background:rgba(110,231,183,0.07);border:1px solid rgba(110,231,183,0.25);border-radius:12px;padding:10px 12px;font-size:11px;color:var(--accent2);line-height:1.6;margin-bottom:12px">
+          ✅ <b>Config sudah tertanam di file.</b><br>
+          Semua device langsung bisa akses tanpa setup.<br>
+          Untuk ubah config, edit konstanta di bagian atas <b>index.html</b> lalu upload ulang.
+        </div>
         <div class="github-config-info">
           Data absensi &amp; anggota tim disimpan di GitHub repo sebagai JSON.<br>
           <b>Token:</b> Personal Access Token (scopes: <b>repo</b>)<br>
@@ -896,6 +902,18 @@ const DATA_FILE  = "absensi-data.json";
 const TEAM_FILE  = "absensi-team.json";
 const CACHE_TTL  = 30 * 1000; // 30s before auto re-sync
 
+// ═══════════════════════════════════════════════════════════
+//  ⚙️  KONFIGURASI GITHUB — ISI SEKALI OLEH ADMIN
+//  Setelah diisi, upload ulang index.html ke repo.
+//  Semua device langsung bisa akses tanpa setup apapun.
+// ═══════════════════════════════════════════════════════════
+const GH_TOKEN  = "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";
+const GH_OWNER  = "simulaku";
+const GH_REPO   = "absensi.dps2";
+const GH_BRANCH = "main";
+const GH_PHOTO_PATH = "foto-absensi"; // folder foto di repo
+// ═══════════════════════════════════════════════════════════
+
 let currentPhoto    = null;
 let currentPhotoUrl = null;
 let rekapMonth      = new Date(); rekapMonth.setDate(1);
@@ -928,11 +946,18 @@ const DEFAULT_TEAM = [
 ];
 
 // ─── GITHUB CONFIG ────────────────────────────────────────
+// Hardcoded config (dari konstanta di atas) diutamakan.
+// Fallback ke localStorage untuk perubahan via admin panel.
 function getGHConfig() {
+  if (GH_TOKEN && GH_OWNER && GH_REPO) {
+    const stored = (() => { try { return JSON.parse(localStorage.getItem('abs_ghconfig')||'{}'); } catch { return {}; } })();
+    return { token: GH_TOKEN, owner: GH_OWNER, repo: GH_REPO, branch: GH_BRANCH, path: stored.path || GH_PHOTO_PATH };
+  }
   try { return JSON.parse(localStorage.getItem('abs_ghconfig')||'{}'); } catch { return {}; }
 }
 function setGHConfig(c) { localStorage.setItem('abs_ghconfig', JSON.stringify(c)); }
 function hasGHConfig() {
+  if (GH_TOKEN && GH_OWNER && GH_REPO) return true;
   const c = getGHConfig();
   return !!(c.token && c.owner && c.repo);
 }
@@ -1131,15 +1156,17 @@ async function connectGithub() {
 
 // ─── INIT ─────────────────────────────────────────────────
 async function boot() {
-  if (!hasGHConfig()) {
+  // Jika hardcoded config sudah diisi → langsung load, skip setup screen
+  if (hasGHConfig()) {
+    showLoadingOverlay('Memuat data dari GitHub…');
+    await syncAll();
     hideLoadingOverlay();
-    document.getElementById('setup-screen').classList.remove('hidden');
+    init();
     return;
   }
-  showLoadingOverlay('Memuat data dari GitHub…');
-  await syncAll();
+  // Belum ada config sama sekali → tampilkan setup screen
   hideLoadingOverlay();
-  init();
+  document.getElementById('setup-screen').classList.remove('hidden');
 }
 
 function init() {
@@ -1180,11 +1207,28 @@ function saveGithubConfig() {
 
 function loadGithubConfigFields() {
   const c = getGHConfig();
-  if (c.token)  document.getElementById('gh-token').value  = c.token;
-  if (c.owner)  document.getElementById('gh-owner').value  = c.owner;
-  if (c.repo)   document.getElementById('gh-repo').value   = c.repo;
-  if (c.path)   document.getElementById('gh-path').value   = c.path;
-  document.getElementById('gh-branch').value = c.branch || 'main';
+  const isHardcoded = !!(GH_TOKEN && GH_OWNER && GH_REPO);
+  if (isHardcoded) {
+    // Tampilkan info bahwa config sudah hardcoded di file
+    document.getElementById('gh-token').value  = '*** tersimpan di file ***';
+    document.getElementById('gh-token').disabled = true;
+    document.getElementById('gh-owner').value  = GH_OWNER;
+    document.getElementById('gh-owner').disabled = true;
+    document.getElementById('gh-repo').value   = GH_REPO;
+    document.getElementById('gh-repo').disabled = true;
+    document.getElementById('gh-branch').value = GH_BRANCH;
+    document.getElementById('gh-branch').disabled = true;
+    document.getElementById('gh-path').value   = c.path || GH_PHOTO_PATH;
+    // Tampilkan banner hardcoded
+    const banner = document.getElementById('gh-hardcoded-banner');
+    if (banner) banner.style.display = 'block';
+  } else {
+    if (c.token)  document.getElementById('gh-token').value  = c.token;
+    if (c.owner)  document.getElementById('gh-owner').value  = c.owner;
+    if (c.repo)   document.getElementById('gh-repo').value   = c.repo;
+    if (c.path)   document.getElementById('gh-path').value   = c.path;
+    document.getElementById('gh-branch').value = c.branch || 'main';
+  }
 }
 
 async function testGithubConfig() {
