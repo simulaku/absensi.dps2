@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Absensi DPS 2</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3248;
+  --accent: #4f8ef7;
+  --accent2: #6ee7b7;
+  --accent3: #f59e0b;
+  --text: #f0f2ff;
+  --muted: #7c849e;
+  --danger: #f87171;
+  --card-radius: 20px;
+  --font: 'Plus Jakarta Sans', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  background: var(--bg);
+  font-family: var(--font);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.app {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+}
+
+/* HEADER */
+.header {
+  background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+  padding: 54px 24px 24px;
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.header::before {
+  content:'';
+  position:absolute;
+  top:-40px; right:-40px;
+  width:160px; height:160px;
+  background: radial-gradient(circle, rgba(110,231,183,0.12) 0%, transparent 70%);
+  border-radius:50%;
+}
+.header-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:rgba(110,231,183,0.12);
+  border:1px solid rgba(110,231,183,0.25);
+  color:var(--accent2);
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  padding:4px 10px;
+  border-radius:20px;
+  margin-bottom:10px;
+}
+.header h1 { font-size:26px; font-weight:800; letter-spacing:-0.5px; line-height:1.2; }
+.header p { color:var(--muted); font-size:13px; margin-top:6px; font-weight:500; }
+.header-icon {
+  position:absolute;
+  right:24px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:52px;
+  animation: bob 2.5s ease-in-out infinite;
+  line-height:1;
+  z-index:2;
+}
+@keyframes bob {
+  0%,100%{transform:translateY(-50%) rotate(0deg);}
+  50%{transform:translateY(-54%) rotate(-8deg);}
+}
+
+/* SYNC STATUS BAR */
+.sync-bar {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 16px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  font-size:11px;
+  font-weight:600;
+}
+.sync-dot {
+  width:7px; height:7px;
+  border-radius:50%;
+  flex-shrink:0;
+  transition:background 0.3s;
+}
+.sync-dot.synced { background:var(--accent2); box-shadow:0 0 5px rgba(110,231,183,0.5); }
+.sync-dot.syncing { background:var(--accent); animation:pulse 1s ease-in-out infinite; }
+.sync-dot.error { background:var(--danger); }
+.sync-dot.offline { background:#555; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+.sync-text { flex:1; color:var(--muted); }
+.sync-btn {
+  background:none; border:1px solid var(--border);
+  color:var(--muted); font-family:var(--font);
+  font-size:10px; font-weight:700; padding:3px 8px;
+  border-radius:8px; cursor:pointer;
+  transition:all 0.15s;
+}
+.sync-btn:active { transform:scale(0.93); }
+
+/* NAV TABS */
+.nav-tabs {
+  display:flex;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+.nav-tab {
+  flex:1;
+  padding:13px 4px;
+  border:none;
+  background:none;
+  color:var(--muted);
+  font-family:var(--font);
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all 0.2s;
+  -webkit-user-select:none;
+}
+.nav-tab.active { color:var(--accent2); border-bottom-color:var(--accent2); }
+.nav-tab:active { opacity:0.7; }
+
+/* CONTENT */
+.content { padding:18px 16px 120px; }
+
+/* SCREEN */
+.screen { display:none; }
+.screen.active { display:block; }
+
+/* CARD */
+.card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--card-radius);
+  padding:18px;
+  margin-bottom:14px;
+  animation:slideUp 0.3s ease;
+}
+@keyframes slideUp { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
+.card-title {
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+
+/* FORM */
+.field-label {
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.07em;
+  color:var(--muted);
+  margin-bottom:7px;
+}
+.field { margin-bottom:14px; }
+.field-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+
+.select-wrap { position:relative; }
+.select-wrap::after {
+  content:'▾';
+  position:absolute;
+  right:14px; top:50%;
+  transform:translateY(-50%);
+  color:var(--muted);
+  pointer-events:none;
+  font-size:13px;
+}
+select {
+  width:100%;
+  padding:13px 38px 13px 14px;
+  background:var(--surface2);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  color:var(--text);
+  font-family:var(--font);
+  font-size:14px;
+  font-weight:500;
+  cursor:pointer;
+  appearance:none;
+  transition:border-color 0.2s;
+}
+select:focus { outline:none; border-color:var(--accent2); }
+select option { background:var(--surface2); }
+
+input[type="time"], input[type="date"], input[type="text"], input[type="password"], input[type="url"], input[type="number"] {
+  width:100%;
+  padding:13px 14px;
+  background:var(--surface2);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:14px;
+  font-weight:500;
+  transition:border-color 0.2s;
+}
+input:focus { outline:none; border-color:var(--accent2); }
+input::placeholder { color:var(--muted); font-family:var(--font); }
+
+/* PHOTO UPLOAD */
+.photo-upload {
+  background:var(--surface2);
+  border:1.5px dashed var(--border);
+  border-radius:14px;
+  padding:20px 16px;
+  text-align:center;
+  cursor:pointer;
+  transition:all 0.2s;
+  -webkit-user-select:none;
+}
+.photo-upload:active { transform:scale(0.98); }
+.photo-upload.has-photo { border-color:rgba(110,231,183,0.4); background:rgba(110,231,183,0.04); }
+.photo-upload input { display:none; }
+.upload-preview {
+  width:80px; height:80px;
+  border-radius:10px;
+  object-fit:cover;
+  border:1.5px solid var(--accent2);
+  display:none;
+  margin:0 auto 8px;
+}
+.upload-icon { font-size:28px; margin-bottom:5px; }
+.upload-label { font-size:12px; color:var(--muted); font-weight:600; }
+.upload-sub { font-size:10px; color:#3a4060; margin-top:2px; }
+
+/* GITHUB STATUS */
+.github-status {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  font-weight:600;
+  padding:6px 10px;
+  border-radius:10px;
+  margin-top:8px;
+}
+.github-status.ok { background:rgba(110,231,183,0.08); color:var(--accent2); border:1px solid rgba(110,231,183,0.2); }
+.github-status.err { background:rgba(248,113,113,0.08); color:var(--danger); border:1px solid rgba(248,113,113,0.2); }
+.github-status.loading { background:rgba(79,142,247,0.08); color:var(--accent); border:1px solid rgba(79,142,247,0.2); }
+
+/* CONFIRM */
+.confirm-box {
+  background:rgba(110,231,183,0.07);
+  border:1px solid rgba(110,231,183,0.2);
+  border-radius:14px;
+  padding:12px 14px;
+  margin-top:14px;
+  display:none;
+  animation:slideUp 0.3s ease;
+}
+.confirm-box.show { display:block; }
+.confirm-box p { font-size:13px; color:var(--accent2); font-weight:600; }
+
+/* BUTTONS */
+.btn {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  height:52px;
+  border-radius:16px;
+  border:none;
+  font-family:var(--font);
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.2s;
+  -webkit-user-select:none;
+  width:100%;
+}
+.btn:active { transform:scale(0.96); }
+.btn-primary { background:var(--accent2); color:#0f1117; box-shadow:0 4px 20px rgba(110,231,183,0.2); }
+.btn-primary:active { background:#5dd4a3; }
+.btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+.btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-danger {
+  background:rgba(248,113,113,0.08);
+  color:var(--danger);
+  border:1px solid rgba(248,113,113,0.18);
+}
+.btn-sm { height:40px; font-size:12px; border-radius:12px; width:auto; padding:0 16px; }
+.btn-icon {
+  height:52px; width:52px;
+  border-radius:16px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-size:18px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  -webkit-user-select:none;
+  transition:all 0.2s;
+}
+.btn-icon:active { transform:scale(0.92); }
+
+/* ACTION BAR */
+.action-bar {
+  position:fixed;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:100%;
+  max-width:430px;
+  padding:12px 16px 28px;
+  background:linear-gradient(to top, var(--bg) 60%, transparent);
+  display:flex;
+  gap:10px;
+  z-index:100;
+}
+
+/* TABLE */
+.table-wrap {
+  overflow-x:auto;
+  border-radius:12px;
+  border:1px solid var(--border);
+}
+table { width:100%; border-collapse:collapse; }
+th {
+  background:var(--surface2);
+  padding:9px 10px;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:0.07em;
+  text-transform:uppercase;
+  color:var(--muted);
+  text-align:center;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+th.left { text-align:left; }
+td { padding:10px 10px; font-size:12px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.04); }
+tr:last-child td { border-bottom:none; }
+.td-no { color:var(--muted); font-family:var(--mono); font-size:11px; }
+.td-name { text-align:left; font-weight:600; font-size:13px; color:var(--text); }
+.td-time { font-family:var(--mono); color:var(--accent2); font-weight:500; font-size:12px; }
+.td-dot { color:rgba(255,255,255,0.1); font-size:16px; }
+.date-th { background:rgba(79,142,247,0.1); color:var(--accent); font-family:var(--mono); font-size:10px; min-width:44px; }
+
+/* REKAP TABLE — sticky columns */
+.rekap-table-wrap {
+  overflow-x:auto;
+  border-radius:12px;
+  border:1px solid var(--border);
+  max-height:420px;
+  overflow-y:auto;
+}
+#rekap-table { border-collapse:separate; border-spacing:0; }
+#rekap-table th { position:sticky; top:0; z-index:3; }
+#rekap-table .col-no { position:sticky; left:0; z-index:2; background:var(--surface2); min-width:28px; max-width:28px; }
+#rekap-table .col-name { position:sticky; left:28px; z-index:2; background:var(--surface2); min-width:110px; max-width:130px; text-align:left; border-right:1px solid var(--border); }
+#rekap-table tbody .col-no { background:var(--surface); z-index:1; }
+#rekap-table tbody .col-name { background:var(--surface); z-index:1; font-size:11px; font-weight:600; text-align:left; padding-left:10px; }
+#rekap-table .col-total { position:sticky; right:0; background:var(--surface2); z-index:2; min-width:44px; border-left:1px solid var(--border); }
+#rekap-table tbody .col-total { background:var(--surface); z-index:1; }
+#rekap-table th.col-no { left:0; z-index:4; }
+#rekap-table th.col-name { left:28px; z-index:4; border-right:1px solid var(--border); }
+#rekap-table th.col-total { right:0; z-index:4; border-left:1px solid var(--border); }
+
+/* HADIR HARI INI */
+.hadir-list { list-style:none; }
+.hadir-item {
+  display:flex;
+  align-items:center;
+  padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  gap:10px;
+}
+.hadir-item:last-child { border-bottom:none; }
+.hadir-dot {
+  width:8px; height:8px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+.hadir-dot.hadir { background:var(--accent2); box-shadow:0 0 6px rgba(110,231,183,0.5); }
+.hadir-dot.belum { background:var(--border); }
+.hadir-name { flex:1; font-size:12px; font-weight:600; color:var(--text); }
+.hadir-jam { font-family:var(--mono); font-size:11px; color:var(--accent2); font-weight:500; }
+.hadir-belum-txt { font-size:11px; color:var(--muted); font-weight:500; }
+.hadir-foto-thumb {
+  width:26px; height:26px; border-radius:6px; object-fit:cover;
+  border:1px solid rgba(110,231,183,0.3); cursor:pointer; flex-shrink:0;
+}
+.hadir-del-btn {
+  background:rgba(248,113,113,0.1);
+  border:1px solid rgba(248,113,113,0.2);
+  color:var(--danger);
+  width:24px; height:24px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:11px;
+  display:none; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.is-admin .hadir-del-btn { display:flex; }
+
+/* STATS */
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+.stat { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px 8px; text-align:center; }
+.stat-num { font-family:var(--mono); font-size:22px; font-weight:500; color:var(--accent2); }
+.stat-label { font-size:9px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; margin-top:2px; }
+
+/* MONTH NAV */
+.month-nav { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.month-label { flex:1; text-align:center; font-family:var(--mono); font-size:13px; font-weight:500; }
+.month-btn {
+  width:36px; height:36px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:var(--surface2);
+  color:var(--text);
+  font-size:16px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  -webkit-user-select:none;
+  transition:all 0.15s;
+}
+.month-btn:active { transform:scale(0.88); }
+
+/* THUMB */
+.thumb {
+  width:32px; height:32px;
+  border-radius:7px;
+  object-fit:cover;
+  border:1px solid rgba(110,231,183,0.25);
+  cursor:pointer;
+  display:block; margin:0 auto;
+}
+
+/* BADGE */
+.badge { display:inline-block; padding:3px 8px; border-radius:20px; font-size:11px; font-weight:700; font-family:var(--mono); }
+.badge-green { background:rgba(110,231,183,0.1); color:var(--accent2); }
+.badge-red { background:rgba(248,113,113,0.1); color:var(--danger); }
+
+/* TEAM LIST */
+.team-list { list-style:none; }
+.team-item { display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.team-item:last-child { border-bottom:none; }
+.team-item-left { display:flex; align-items:center; gap:10px; }
+.avatar {
+  width:36px; height:36px;
+  border-radius:10px;
+  background:rgba(110,231,183,0.08);
+  border:1px solid rgba(110,231,183,0.18);
+  color:var(--accent2);
+  font-size:12px;
+  font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.team-name { font-size:13px; font-weight:600; color:var(--text); }
+.team-id { font-size:10px; color:var(--muted); font-family:var(--mono); margin-top:1px; }
+
+/* SEP */
+.sep { height:1px; background:var(--border); margin:14px 0; }
+
+/* EXPORT ROW */
+.export-row { display:flex; gap:8px; }
+
+/* ADMIN GATE */
+.admin-gate-center { padding:32px 0 20px; text-align:center; }
+.admin-gate-icon { font-size:48px; margin-bottom:12px; }
+.admin-gate-title { font-size:18px; font-weight:800; margin-bottom:6px; }
+.admin-gate-sub { font-size:13px; color:var(--muted); margin-bottom:20px; }
+
+/* GITHUB CONFIG BOX */
+.github-config-info {
+  background:rgba(79,142,247,0.06);
+  border:1px solid rgba(79,142,247,0.15);
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.6;
+  margin-bottom:12px;
+}
+.github-config-info b { color:var(--accent); }
+
+/* INFO BOX */
+.info-box {
+  background:rgba(245,158,11,0.07);
+  border:1px solid rgba(245,158,11,0.2);
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:11px;
+  color:#d4a04a;
+  line-height:1.6;
+  margin-bottom:12px;
+}
+
+/* TOAST */
+.toast {
+  position:fixed;
+  bottom:96px;
+  left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-left:3px solid var(--accent2);
+  color:var(--text);
+  padding:11px 18px;
+  border-radius:12px;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  opacity:0;
+  transition:all 0.3s;
+  z-index:999;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* MODAL */
+.modal-bg {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.75);
+  z-index:300;
+  align-items:center;
+  justify-content:center;
+}
+.modal-bg.open { display:flex; }
+.modal {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--card-radius);
+  padding:20px;
+  max-width:360px;
+  width:90%;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6);
+}
+.modal h3 { font-size:15px; margin-bottom:14px; }
+.modal img { width:100%; border-radius:12px; }
+
+/* LOADING OVERLAY */
+.loading-overlay {
+  position:fixed; inset:0; z-index:500;
+  background:rgba(15,17,23,0.85);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:14px;
+}
+.loading-overlay.hidden { display:none; }
+.spinner {
+  width:40px; height:40px;
+  border:3px solid var(--border);
+  border-top-color:var(--accent2);
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-txt { font-size:13px; font-weight:600; color:var(--muted); }
+
+/* SETUP SCREEN */
+.setup-screen {
+  position:fixed; inset:0; z-index:400;
+  background:var(--bg);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:32px 24px;
+}
+.setup-screen.hidden { display:none; }
+.setup-logo { font-size:56px; margin-bottom:16px; }
+.setup-title { font-size:22px; font-weight:800; margin-bottom:8px; letter-spacing:-0.5px; }
+.setup-sub { font-size:13px; color:var(--muted); margin-bottom:28px; text-align:center; line-height:1.6; max-width:340px; }
+.setup-card {
+  width:100%; max-width:380px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--card-radius);
+  padding:20px;
+}
+.setup-steps {
+  display:flex; flex-direction:column; gap:10px;
+  margin-bottom:20px;
+  background:rgba(79,142,247,0.05);
+  border:1px solid rgba(79,142,247,0.15);
+  border-radius:12px;
+  padding:12px;
+}
+.setup-step { font-size:11px; color:var(--muted); line-height:1.6; }
+.setup-step b { color:var(--accent); }
+
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-txt" id="loading-txt">Memuat data…</div>
+</div>
+
+<!-- SETUP SCREEN (first time) -->
+<div class="setup-screen hidden" id="setup-screen">
+  <div class="setup-logo">🗓️</div>
+  <div class="setup-title">Absensi DPS 2</div>
+  <div class="setup-sub">Hubungkan ke GitHub agar data absensi tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
+  <div class="setup-card">
+    <div class="setup-steps">
+      <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
+      <div class="setup-step">2. Generate <b>Personal Access Token</b> di Settings → Developer Settings → PAT (scopes: <b>repo</b>)</div>
+      <div class="setup-step">3. Isi form di bawah, lalu <b>Sambungkan</b></div>
+    </div>
+    <div class="field-label">GitHub Token (PAT)</div>
+    <div class="field"><input type="password" id="setup-token" placeholder="ghp_xxxxxxxxxxxx"></div>
+    <div class="field-label">Username / Owner</div>
+    <div class="field"><input type="text" id="setup-owner" placeholder="username-github"></div>
+    <div class="field-label">Nama Repository</div>
+    <div class="field"><input type="text" id="setup-repo" placeholder="absensi-dps2"></div>
+    <div class="field-label">Branch</div>
+    <div class="field"><input type="text" id="setup-branch" placeholder="main" value="main"></div>
+    <button class="btn btn-primary" onclick="connectGithub()" style="margin-bottom:10px">🔗 Sambungkan ke GitHub</button>
+    <div id="setup-status" style="display:none"></div>
+  </div>
+</div>
+
+<div class="app" id="app-root">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-badge">📋 Absensi</div>
+  <h1>ABSENSI DPS 2</h1>
+  <p>Rekap kehadiran harian tim Anda.</p>
+  <div class="header-icon">🗓️</div>
+</div>
+
+<!-- SYNC STATUS BAR -->
+<div class="sync-bar">
+  <div class="sync-dot offline" id="sync-dot"></div>
+  <span class="sync-text" id="sync-text">Menginisialisasi…</span>
+  <button class="sync-btn" onclick="syncAll()">⟳ Sync</button>
+</div>
+
+<!-- NAV -->
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="switchTab('checkin',this)">Check-in</button>
+  <button class="nav-tab" onclick="switchTab('rekap',this)">Rekap</button>
+  <button class="nav-tab" onclick="switchTab('admin',this)">Admin</button>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- ===== CHECK-IN ===== -->
+  <div class="screen active" id="tab-checkin">
+
+    <div class="card">
+      <div class="card-title">👤 Nama Anggota</div>
+      <div class="field">
+        <div class="select-wrap">
+          <select id="sel-nama">
+            <option value="">— Pilih nama —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-2">
+        <div>
+          <div class="field-label">Jam Masuk</div>
+          <input type="time" id="inp-jam" step="60">
+        </div>
+        <div>
+          <div class="field-label">Tanggal</div>
+          <input type="date" id="inp-tanggal" onchange="updateTodayLabel(); renderHadirList()">
+        </div>
+      </div>
+
+      <div class="field-label">Foto Bukti <span style="color:#3a4060;font-size:10px">(opsional)</span></div>
+      <div class="photo-upload" id="photo-area" onclick="document.getElementById('foto-input').click()">
+        <input type="file" id="foto-input" accept="image/*" onchange="handlePhoto(this)">
+        <img id="upload-preview" class="upload-preview" alt="">
+        <div id="upload-placeholder">
+          <div class="upload-icon">📷</div>
+          <div class="upload-label">Tap untuk upload foto</div>
+          <div id="upload-sub-txt" class="upload-sub">Auto-kompres · tersimpan ke GitHub</div>
+        </div>
+      </div>
+      <div id="github-upload-status" style="display:none"></div>
+
+      <div class="confirm-box" id="confirm-box">
+        <p id="confirm-msg"></p>
+      </div>
+    </div>
+
+    <!-- HADIR HARI INI -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin:0">✅ Hadir Hari Ini</div>
+        <span id="today-lbl" style="font-size:10px;color:var(--muted);font-family:var(--mono)"></span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <span id="chip-hadir" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(110,231,183,0.1);color:var(--accent2)">0 Hadir</span>
+        <span id="chip-belum" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(248,113,113,0.1);color:var(--danger)">0 Belum</span>
+      </div>
+      <ul class="hadir-list" id="hadir-list"></ul>
+    </div>
+  </div>
+
+  <!-- ===== REKAP ===== -->
+  <div class="screen" id="tab-rekap">
+
+    <div class="month-nav">
+      <button class="month-btn" onclick="changeMonth(-1)">‹</button>
+      <div class="month-label" id="month-label">—</div>
+      <button class="month-btn" onclick="changeMonth(1)">›</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num" id="stat-days">0</div>
+        <div class="stat-label">Hari Aktif</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-entries">0</div>
+        <div class="stat-label">Total Hadir</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-members">0</div>
+        <div class="stat-label">Anggota</div>
+      </div>
+    </div>
+
+    <div class="card" id="rekap-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin:0">📊 Tabel Rekap</div>
+        <div class="export-row">
+          <button class="btn btn-secondary btn-sm" onclick="exportImage()">⬇ Gambar</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⬇ CSV</button>
+        </div>
+      </div>
+      <p style="font-size:10px;color:var(--muted);margin-bottom:10px;">← Geser tabel · Nama & tanggal terkunci</p>
+      <div class="rekap-table-wrap">
+        <table id="rekap-table">
+          <thead id="rekap-thead"></thead>
+          <tbody id="rekap-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ADMIN ===== -->
+  <div class="screen" id="tab-admin">
+
+    <div id="admin-gate">
+      <div class="card">
+        <div class="admin-gate-center">
+          <div class="admin-gate-icon">🔐</div>
+          <div class="admin-gate-title">Area Admin</div>
+          <div class="admin-gate-sub">Masukkan password untuk mengakses pengaturan tim.</div>
+        </div>
+        <div class="field-label">Password</div>
+        <div class="field">
+          <input type="password" id="admin-pass" placeholder="Masukkan password…" onkeydown="if(event.key==='Enter')adminLogin()">
+        </div>
+        <button class="btn btn-primary" onclick="adminLogin()">Masuk →</button>
+      </div>
+    </div>
+
+    <div id="admin-panel" style="display:none">
+
+      <div class="card">
+        <div class="card-title">📅 Tanggal Default</div>
+        <div class="field-label">Tanggal default untuk form check-in</div>
+        <div class="field">
+          <input type="date" id="admin-date">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="saveDefaultDate()">Simpan Tanggal</button>
+      </div>
+
+      <!-- GITHUB SETTINGS -->
+      <div class="card">
+        <div class="card-title">🐙 Koneksi GitHub</div>
+        <div class="github-config-info">
+          Data absensi &amp; anggota tim disimpan di GitHub repo sebagai JSON.<br>
+          <b>Token:</b> Personal Access Token (scopes: <b>repo</b>)<br>
+          <b>File data:</b> <b>absensi-data.json</b> &amp; <b>absensi-team.json</b>
+        </div>
+        <div class="field-label">GitHub Token (PAT)</div>
+        <div class="field"><input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx"></div>
+        <div class="field-label">Owner / Username</div>
+        <div class="field"><input type="text" id="gh-owner" placeholder="username-github"></div>
+        <div class="field-label">Nama Repository</div>
+        <div class="field"><input type="text" id="gh-repo" placeholder="nama-repo"></div>
+        <div class="field-label">Folder Path Foto (opsional)</div>
+        <div class="field"><input type="text" id="gh-path" placeholder="foto-absensi/"></div>
+        <div class="field-label">Branch</div>
+        <div class="field"><input type="text" id="gh-branch" placeholder="main"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveGithubConfig()" style="margin-bottom:8px">💾 Simpan Konfigurasi</button>
+        <button class="btn btn-ghost btn-sm" onclick="testGithubConfig()" style="margin-bottom:8px">🔗 Test Koneksi</button>
+        <button class="btn btn-secondary btn-sm" onclick="syncAll()">⟳ Sync Manual</button>
+        <div id="gh-test-result" style="margin-top:8px;display:none"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">👥 Kelola Tim</div>
+        <ul class="team-list" id="team-list"></ul>
+        <div class="sep"></div>
+        <div class="field-label">Tambah Anggota Baru</div>
+        <div class="field-2">
+          <input type="text" id="new-name" placeholder="Nama lengkap">
+          <input type="text" id="new-id" placeholder="ID staff">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addMember()">+ Tambah</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">💾 Manajemen Data</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn btn-secondary" onclick="exportAll()" style="height:46px;font-size:13px">⬇ Export Backup JSON</button>
+          <button class="btn btn-secondary" onclick="importBackup()" style="height:46px;font-size:13px">⬆ Import Backup JSON</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="doImport(this)">
+          <button class="btn btn-danger" onclick="clearMonth()" style="height:46px;font-size:13px;width:100%">🗑 Hapus Data Bulan Ini</button>
+          <button class="btn btn-danger" onclick="clearAll()" style="height:46px;font-size:13px;width:100%">⚠️ Hapus Semua Data</button>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding-bottom:10px">
+        <button class="btn btn-ghost btn-sm" onclick="adminLogout()" style="width:auto">Logout Admin</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<!-- ACTION BAR -->
+<div class="action-bar" id="action-bar">
+  <button class="btn-icon" onclick="setNow()" title="Waktu sekarang">⏱</button>
+  <button class="btn btn-primary" onclick="submitCheckin()">✓ Simpan Absensi</button>
+  <button class="btn-icon" onclick="resetForm()" title="Reset">↺</button>
+</div>
+
+</div><!-- /app -->
+
+<!-- MODAL -->
+<div class="modal-bg" id="photo-modal" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title">Foto Bukti</h3>
+    <img id="modal-img" src="" alt="">
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  ABSENSI DPS 2 — GitHub Realtime Integration
+//  Data flow: GitHub JSON files ←→ in-memory cache ←→ UI
+//  Files in repo: absensi-data.json, absensi-team.json
+// ═══════════════════════════════════════════════════════════
+
+const ADMIN_PASS = "admin123";
+const DATA_FILE  = "absensi-data.json";
+const TEAM_FILE  = "absensi-team.json";
+const CACHE_TTL  = 30 * 1000; // 30s before auto re-sync
+
+let currentPhoto    = null;
+let currentPhotoUrl = null;
+let rekapMonth      = new Date(); rekapMonth.setDate(1);
+let activeTab       = 'checkin';
+let isAdmin         = false;
+
+// In-memory state (synced from GitHub)
+let _data     = {};  // absensi data
+let _team     = [];  // team members
+let _dataSHA  = null;
+let _teamSHA  = null;
+let _lastSync = 0;
+let _syncing  = false;
+
+// ─── DEFAULT TEAM ─────────────────────────────────────────
+const DEFAULT_TEAM = [
+  {id:'7467',name:'VIVI RIZQI ROBBANI'},{id:'5766',name:'KADEK ARIK GUNAWAN'},
+  {id:'5151',name:'VEPI GALUH APRIL LIYANI'},{id:'5964',name:'SANG AYU MADE SINTA DEWI'},
+  {id:'7955',name:'MUKHAMMAD ROSYID NURFAIZIN'},{id:'8592',name:'L M ABI ALQHUSAIRI'},
+  {id:'8596',name:'DITA ILNIA PUTRI'},{id:'8711',name:'EKO SAPUTRO'},
+  {id:'8733',name:'YULIA EKA MAHARANI'},{id:'9105',name:'ASIH ROSANTI'},
+  {id:'9631',name:'INDAH LESTARI'},{id:'8889',name:'FARHAN'},
+  {id:'8916',name:'RAHMI WULANDARI'},{id:'9015',name:'KOMANG JUNI YANTI'},
+  {id:'9007',name:'GREGORIUS KRISTOFORUS NANA'},{id:'9146',name:'IMAM PRASETYO'},
+  {id:'9382',name:'HERI'},{id:'9303',name:'I NENGAH JUNIANTARA'},
+  {id:'9463',name:'ELVINESIA NOVIANTI GABRIELA'},{id:'9434',name:'I KADEK DWI CANDRA GUNAWAN'},
+  {id:'9479',name:'ANDIKA REZTU MAHFANI'},{id:'9423',name:'PUTRI ANGGUN PRAMITA'},
+  {id:'9481',name:'IKHFAN YUNUS'},{id:'9632',name:'GUSNALDIN'},
+  {id:'9684',name:'NI PUTU SUGIANTARI'},
+];
+
+// ─── GITHUB CONFIG ────────────────────────────────────────
+function getGHConfig() {
+  try { return JSON.parse(localStorage.getItem('abs_ghconfig')||'{}'); } catch { return {}; }
+}
+function setGHConfig(c) { localStorage.setItem('abs_ghconfig', JSON.stringify(c)); }
+function hasGHConfig() {
+  const c = getGHConfig();
+  return !!(c.token && c.owner && c.repo);
+}
+
+// ─── GITHUB API HELPERS ───────────────────────────────────
+function ghHeaders() {
+  const c = getGHConfig();
+  return {
+    Authorization: `token ${c.token}`,
+    Accept: 'application/vnd.github+json',
+    'Content-Type': 'application/json',
+  };
+}
+function ghApiUrl(file) {
+  const c = getGHConfig();
+  return `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${file}`;
+}
+
+// Read a JSON file from GitHub repo, returns {data, sha} or null
+async function ghReadJSON(file) {
+  try {
+    const r = await fetch(ghApiUrl(file), { headers: ghHeaders() });
+    if (r.status === 404) return { data: null, sha: null };
+    if (!r.ok) return null;
+    const j = await r.json();
+    const content = atob(j.content.replace(/\s/g,''));
+    return { data: JSON.parse(content), sha: j.sha };
+  } catch(e) {
+    console.error('ghReadJSON error', file, e);
+    return null;
+  }
+}
+
+// Write a JSON file to GitHub repo (create or update)
+async function ghWriteJSON(file, data, sha) {
+  const c = getGHConfig();
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+  const body = {
+    message: `Update ${file} [absensi-app]`,
+    content,
+    branch: c.branch || 'main',
+  };
+  if (sha) body.sha = sha;
+  try {
+    const r = await fetch(ghApiUrl(file), {
+      method: 'PUT',
+      headers: ghHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { const e = await r.json(); console.error('ghWriteJSON error', e); return null; }
+    const j = await r.json();
+    return j.content.sha;
+  } catch(e) {
+    console.error('ghWriteJSON exception', e);
+    return null;
+  }
+}
+
+// Upload binary file (photo) to GitHub
+async function uploadToGithub(base64DataUrl, filename) {
+  const c = getGHConfig();
+  if (!c.token || !c.owner || !c.repo) return null;
+  const base64 = base64DataUrl.split(',')[1];
+  const folder = c.path ? c.path.replace(/\/$/,'') + '/' : '';
+  const filePath = `${folder}${filename}`;
+  const apiUrl = `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${filePath}`;
+  try {
+    let sha = null;
+    const check = await fetch(apiUrl, { headers: ghHeaders() });
+    if (check.ok) { const j = await check.json(); sha = j.sha; }
+    const body = { message: `Foto absensi: ${filename}`, content: base64, branch: c.branch || 'main' };
+    if (sha) body.sha = sha;
+    const r = await fetch(apiUrl, { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data.content.download_url;
+  } catch(e) { return null; }
+}
+
+// ─── SYNC ENGINE ──────────────────────────────────────────
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = 'sync-dot ' + state;
+  txt.textContent = text;
+}
+
+async function syncAll(silent = false) {
+  if (_syncing) return;
+  if (!hasGHConfig()) { setSyncStatus('offline', 'Belum terhubung ke GitHub'); return; }
+  _syncing = true;
+  if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
+
+  try {
+    // Read data file
+    const dr = await ghReadJSON(DATA_FILE);
+    if (dr === null) { setSyncStatus('error', 'Gagal baca data dari GitHub'); _syncing = false; return; }
+    if (dr.data !== null) { _data = dr.data; _dataSHA = dr.sha; }
+    else { _data = {}; _dataSHA = null; }
+
+    // Read team file
+    const tr = await ghReadJSON(TEAM_FILE);
+    if (tr === null) { setSyncStatus('error', 'Gagal baca tim dari GitHub'); _syncing = false; return; }
+    if (tr.data !== null) { _team = tr.data; _teamSHA = tr.sha; }
+    else {
+      // First time: push default team
+      _team = DEFAULT_TEAM;
+      const newSHA = await ghWriteJSON(TEAM_FILE, _team, null);
+      if (newSHA) _teamSHA = newSHA;
+    }
+
+    _lastSync = Date.now();
+    const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('synced', `Tersinkron · ${now}`);
+    refreshUI();
+  } catch(e) {
+    setSyncStatus('error', 'Error: ' + e.message);
+  }
+  _syncing = false;
+}
+
+// Save data to GitHub
+async function saveData() {
+  if (!hasGHConfig()) return;
+  setSyncStatus('syncing', 'Menyimpan data…');
+  const newSHA = await ghWriteJSON(DATA_FILE, _data, _dataSHA);
+  if (newSHA) {
+    _dataSHA = newSHA;
+    const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('synced', `Tersimpan · ${now}`);
+  } else {
+    setSyncStatus('error', 'Gagal simpan — coba sync ulang');
+    toast('⚠️ Gagal simpan ke GitHub. Sync ulang!');
+  }
+}
+
+// Save team to GitHub
+async function saveTeam() {
+  if (!hasGHConfig()) return;
+  setSyncStatus('syncing', 'Menyimpan data tim…');
+  const newSHA = await ghWriteJSON(TEAM_FILE, _team, _teamSHA);
+  if (newSHA) {
+    _teamSHA = newSHA;
+    const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    setSyncStatus('synced', `Tim tersimpan · ${now}`);
+  } else {
+    setSyncStatus('error', 'Gagal simpan tim');
+  }
+}
+
+// Auto-sync every 60s when tab is visible
+setInterval(() => {
+  if (document.visibilityState === 'visible' && hasGHConfig() && !_syncing) {
+    if (Date.now() - _lastSync > 60000) syncAll(true);
+  }
+}, 15000);
+
+// ─── DATA ACCESSORS (in-memory) ───────────────────────────
+const getData = () => _data;
+const setData = async d => { _data = d; await saveData(); };
+const getTeam = () => _team.length ? _team : DEFAULT_TEAM;
+const setTeam = async t => { _team = t; await saveTeam(); };
+const getDefaultDate = () => localStorage.getItem('abs_defdate') || '';
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+// ─── SETUP / CONNECT ──────────────────────────────────────
+async function connectGithub() {
+  const token  = document.getElementById('setup-token').value.trim();
+  const owner  = document.getElementById('setup-owner').value.trim();
+  const repo   = document.getElementById('setup-repo').value.trim();
+  const branch = document.getElementById('setup-branch').value.trim() || 'main';
+  const statusEl = document.getElementById('setup-status');
+  if (!token || !owner || !repo) { toast('⚠️ Isi semua field'); return; }
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div class="github-status loading">⏳ Menghubungkan…</div>';
+  setGHConfig({ token, owner, repo, branch, path: '' });
+  // Test connection
+  try {
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (!r.ok) {
+      statusEl.innerHTML = `<div class="github-status err">✕ Error ${r.status}: Repo tidak ditemukan atau token salah</div>`;
+      return;
+    }
+    statusEl.innerHTML = '<div class="github-status ok">✓ Berhasil! Memuat data…</div>';
+    setTimeout(() => {
+      document.getElementById('setup-screen').classList.add('hidden');
+      showLoadingOverlay('Memuat data dari GitHub…');
+      syncAll().then(() => { hideLoadingOverlay(); init(); });
+    }, 1000);
+  } catch(e) {
+    statusEl.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+async function boot() {
+  if (!hasGHConfig()) {
+    hideLoadingOverlay();
+    document.getElementById('setup-screen').classList.remove('hidden');
+    return;
+  }
+  showLoadingOverlay('Memuat data dari GitHub…');
+  await syncAll();
+  hideLoadingOverlay();
+  init();
+}
+
+function init() {
+  populateDropdown(); setNow(); renderHadirList(); renderRekapMonth();
+  const dd = getDefaultDate();
+  if (dd) document.getElementById('inp-tanggal').value = dd;
+  document.getElementById('admin-date').value = dd || todayStr();
+  updateTodayLabel();
+}
+
+function refreshUI() {
+  populateDropdown(); renderHadirList(); renderRekapMonth();
+  if (isAdmin) renderTeamList();
+}
+
+function showLoadingOverlay(txt) {
+  document.getElementById('loading-txt').textContent = txt || 'Memuat…';
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoadingOverlay() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+// ─── GITHUB CONFIG SAVE (from admin panel) ────────────────
+function saveGithubConfig() {
+  const c = {
+    token:  document.getElementById('gh-token').value.trim(),
+    owner:  document.getElementById('gh-owner').value.trim(),
+    repo:   document.getElementById('gh-repo').value.trim(),
+    path:   document.getElementById('gh-path').value.trim().replace(/\/$/,''),
+    branch: document.getElementById('gh-branch').value.trim() || 'main',
+  };
+  if (!c.token || !c.owner || !c.repo) { toast('⚠️ Token, Owner, dan Repo wajib diisi'); return; }
+  setGHConfig(c);
+  toast('✓ Konfigurasi disimpan');
+  syncAll();
+}
+
+function loadGithubConfigFields() {
+  const c = getGHConfig();
+  if (c.token)  document.getElementById('gh-token').value  = c.token;
+  if (c.owner)  document.getElementById('gh-owner').value  = c.owner;
+  if (c.repo)   document.getElementById('gh-repo').value   = c.repo;
+  if (c.path)   document.getElementById('gh-path').value   = c.path;
+  document.getElementById('gh-branch').value = c.branch || 'main';
+}
+
+async function testGithubConfig() {
+  const c = getGHConfig();
+  const el = document.getElementById('gh-test-result');
+  el.style.display = 'block';
+  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi…</div>';
+  if (!c.token || !c.owner || !c.repo) { el.innerHTML = '<div class="github-status err">⚠️ Simpan konfigurasi dulu</div>'; return; }
+  try {
+    const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}`, {
+      headers: { Authorization:`token ${c.token}`, Accept:'application/vnd.github+json' }
+    });
+    if (r.ok) el.innerHTML = '<div class="github-status ok">✓ Koneksi GitHub berhasil!</div>';
+    else el.innerHTML = `<div class="github-status err">✕ Error: ${r.status} ${r.statusText}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
+  }
+}
+
+// ─── UI ───────────────────────────────────────────────────
+function populateDropdown() {
+  const team = getTeam().sort((a,b) => a.name.localeCompare(b.name));
+  const sel = document.getElementById('sel-nama');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Pilih nama —</option>';
+  team.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id; o.textContent = m.name;
+    if (m.id === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function switchTab(tab, btn) {
+  activeTab = tab;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('action-bar').style.display = tab === 'checkin' ? 'flex' : 'none';
+  if (tab === 'rekap') { renderRekapMonth(); if (Date.now()-_lastSync > CACHE_TTL) syncAll(true); }
+  if (tab === 'admin') { renderTeamList(); loadGithubConfigFields(); }
+}
+
+// ─── PHOTO ────────────────────────────────────────────────
+function handlePhoto(inp) {
+  const file = inp.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => compress(e.target.result, 800, 0.72, r => {
+    currentPhoto = r; currentPhotoUrl = null;
+    const prev = document.getElementById('upload-preview');
+    prev.src = r; prev.style.display = 'block';
+    document.getElementById('upload-placeholder').style.display = 'none';
+    document.getElementById('photo-area').classList.add('has-photo');
+  });
+  reader.readAsDataURL(file);
+}
+
+function compress(src, max, q, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    let w = img.width, h = img.height;
+    if (w > max || h > max) { if (w > h) { h = Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
+    c.width=w; c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    cb(c.toDataURL('image/jpeg', q));
+  };
+  img.src = src;
+}
+
+// ─── FORM ─────────────────────────────────────────────────
+function setNow() {
+  const now = new Date();
+  document.getElementById('inp-jam').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('inp-tanggal').value = getDefaultDate() || todayStr();
+  updateTodayLabel(); renderHadirList();
+}
+
+function updateTodayLabel() {
+  const v = document.getElementById('inp-tanggal').value || todayStr();
+  document.getElementById('today-lbl').textContent = fmtShort(v);
+}
+
+async function submitCheckin() {
+  const nameId  = document.getElementById('sel-nama').value;
+  const jam     = document.getElementById('inp-jam').value;
+  const tanggal = document.getElementById('inp-tanggal').value;
+  if (!nameId)  { toast('⚠️ Pilih nama terlebih dahulu'); return; }
+  if (!jam)     { toast('⚠️ Masukkan jam masuk'); return; }
+  if (!tanggal) { toast('⚠️ Masukkan tanggal'); return; }
+
+  const member = getTeam().find(m => m.id === nameId);
+  const data   = getData();
+  if (!data[tanggal]) data[tanggal] = {};
+  if (data[tanggal][nameId] && !confirm(`${member.name} sudah check-in jam ${data[tanggal][nameId].jam}. Timpa?`)) return;
+
+  // Upload photo
+  let fotoValue = null;
+  if (currentPhoto) {
+    const ghConf = getGHConfig();
+    if (ghConf.token && ghConf.owner && ghConf.repo) {
+      const statusEl = document.getElementById('github-upload-status');
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = '<div class="github-status loading">⏳ Mengupload foto ke GitHub…</div>';
+      const ts = Date.now();
+      const filename = `${tanggal}_${nameId}_${ts}.jpg`;
+      const url = await uploadToGithub(currentPhoto, filename);
+      if (url) {
+        currentPhotoUrl = url; fotoValue = url;
+        statusEl.innerHTML = '<div class="github-status ok">✓ Foto tersimpan di GitHub</div>';
+        setTimeout(() => { statusEl.style.display='none'; }, 3000);
+      } else {
+        fotoValue = currentPhoto;
+        statusEl.innerHTML = '<div class="github-status err">⚠️ Upload foto gagal, tersimpan lokal</div>';
+        setTimeout(() => { statusEl.style.display='none'; }, 3000);
+      }
+    } else {
+      fotoValue = currentPhoto;
+    }
+  }
+
+  data[tanggal][nameId] = { jam, foto: fotoValue };
+  _data = data;
+
+  // Show confirm immediately, then save in background
+  const box = document.getElementById('confirm-box');
+  document.getElementById('confirm-msg').textContent = `✓ ${member.name} — ${jam} · ${fmtShort(tanggal)}`;
+  box.classList.add('show');
+  setTimeout(() => box.classList.remove('show'), 4000);
+  toast(`✓ ${member.name} check-in berhasil!`);
+  resetForm(); renderHadirList(); renderRekapMonth();
+
+  // Save to GitHub
+  await saveData();
+}
+
+function resetForm() {
+  document.getElementById('sel-nama').value = '';
+  setNow(); currentPhoto = null; currentPhotoUrl = null;
+  document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('upload-placeholder').style.display = 'block';
+  document.getElementById('photo-area').classList.remove('has-photo');
+  document.getElementById('foto-input').value = '';
+}
+
+// ─── HADIR LIST ───────────────────────────────────────────
+function renderHadirList() {
+  const tanggal = document.getElementById('inp-tanggal').value || todayStr();
+  const data    = getData();
+  const dayData = data[tanggal] || {};
+  const team    = getTeam().sort((a,b) => a.name.localeCompare(b.name));
+  const ul = document.getElementById('hadir-list');
+  ul.innerHTML = '';
+  let hadirCount = 0;
+  team.forEach((m, i) => {
+    const rec   = dayData[m.id];
+    const hadir = !!rec;
+    if (hadir) hadirCount++;
+    const li = document.createElement('li');
+    li.className = 'hadir-item';
+    let fotoHtml = '';
+    if (rec && rec.foto) {
+      const safeFoto = rec.foto.replace(/'/g, "\\'");
+      const safeName = m.name.replace(/'/g, "\\'");
+      fotoHtml = `<img src="${rec.foto}" class="hadir-foto-thumb" onclick="openModal('${safeName}','${safeFoto}')" alt="foto">`;
+    }
+    const delBtn = `<button class="hadir-del-btn" onclick="deleteEntry('${tanggal}','${m.id}')" title="Hapus">✕</button>`;
+    li.innerHTML = `
+      <div class="hadir-dot ${hadir ? 'hadir' : 'belum'}"></div>
+      <span class="hadir-name">${i+1}. ${m.name}</span>
+      ${hadir ? `<span class="hadir-jam">${rec.jam}</span>` : `<span class="hadir-belum-txt">Belum</span>`}
+      ${fotoHtml}
+      ${delBtn}
+    `;
+    ul.appendChild(li);
+  });
+  document.getElementById('chip-hadir').textContent = `${hadirCount} Hadir`;
+  document.getElementById('chip-belum').textContent = `${team.length - hadirCount} Belum`;
+  updateTodayLabel();
+}
+
+async function deleteEntry(tanggal, id) {
+  if (!isAdmin) { toast('⚠️ Hanya admin yang bisa menghapus'); return; }
+  if (!confirm('Hapus data ini?')) return;
+  if (_data[tanggal]) { delete _data[tanggal][id]; }
+  renderHadirList(); renderRekapMonth(); toast('🗑 Data dihapus');
+  await saveData();
+}
+
+// ─── REKAP ────────────────────────────────────────────────
+function changeMonth(dir) {
+  rekapMonth.setMonth(rekapMonth.getMonth() + dir);
+  renderRekapMonth();
+}
+
+function renderRekapMonth() {
+  const y = rekapMonth.getFullYear(), m = rekapMonth.getMonth();
+  document.getElementById('month-label').textContent =
+    new Date(y,m,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'}).toUpperCase();
+  const days = new Date(y,m+1,0).getDate();
+  const allDates = Array.from({length:days},(_,i) =>
+    `${y}-${String(m+1).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
+  const data = getData();
+  const team = getTeam();
+  const activeDates = allDates.filter(d => data[d] && Object.keys(data[d]).length > 0);
+  const totalEntries = activeDates.reduce((s,d) => s + Object.keys(data[d]).length, 0);
+  document.getElementById('stat-days').textContent    = activeDates.length;
+  document.getElementById('stat-entries').textContent = totalEntries;
+  document.getElementById('stat-members').textContent = team.length;
+
+  const thead = document.getElementById('rekap-thead');
+  let headHTML = '<tr>';
+  headHTML += `<th class="col-no td-no">#</th>`;
+  headHTML += `<th class="col-name left">Nama</th>`;
+  activeDates.forEach(d => {
+    const day     = parseInt(d.split('-')[2]);
+    const dayName = new Date(d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'});
+    headHTML += `<th class="date-th" style="min-width:48px"><div>${day}</div><div style="font-size:8px;opacity:0.6">${dayName}</div></th>`;
+  });
+  headHTML += `<th class="col-total">Tot</th></tr>`;
+  thead.innerHTML = headHTML;
+
+  const tbody = document.getElementById('rekap-tbody');
+  if (!activeDates.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:12px">Tidak ada data bulan ini</td></tr>`;
+    return;
+  }
+  let html = '';
+  team.sort((a,b) => a.name.localeCompare(b.name)).forEach((mem,i) => {
+    let total = 0;
+    let row = `<tr>`;
+    row += `<td class="col-no td-no">${i+1}</td>`;
+    row += `<td class="col-name">${mem.name}</td>`;
+    activeDates.forEach(d => {
+      const rec = data[d]?.[mem.id];
+      if (rec) {
+        total++;
+        let cell = `<td class="td-time" style="font-size:10px">`;
+        if (rec.foto) {
+          const safeFoto = rec.foto.replace(/'/g, "\\'");
+          const safeName = mem.name.replace(/'/g, "\\'");
+          cell += `<div style="font-size:10px;color:var(--accent2);font-family:var(--mono)">${rec.jam}</div>`;
+          cell += `<img src="${rec.foto}" class="thumb" style="width:24px;height:24px;margin-top:2px" alt="foto" onclick="openModal('${safeName}','${safeFoto}')">`;
+          cell += `</td>`;
+        } else { cell += `${rec.jam}</td>`; }
+        row += cell;
+      } else { row += `<td class="td-dot">·</td>`; }
+    });
+    row += `<td class="col-total"><span class="badge ${total>0?'badge-green':'badge-red'}">${total}</span></td></tr>`;
+    html += row;
+  });
+  tbody.innerHTML = html;
+}
+
+// ─── EXPORT ───────────────────────────────────────────────
+function exportImage() {
+  const card = document.getElementById('rekap-card');
+  html2canvas(card, { scale:2, backgroundColor:'#1a1d27', useCORS:true, logging:false }).then(canvas => {
+    const a = document.createElement('a');
+    a.download = `rekap-${rekapMonth.getFullYear()}-${String(rekapMonth.getMonth()+1).padStart(2,'0')}.png`;
+    a.href = canvas.toDataURL('image/png'); a.click();
+    toast('📷 Gambar diunduh!');
+  });
+}
+
+function exportCSV() {
+  const y = rekapMonth.getFullYear(), m = rekapMonth.getMonth();
+  const days = new Date(y,m+1,0).getDate();
+  const allDates = Array.from({length:days},(_,i) => `${y}-${String(m+1).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`);
+  const data = getData(); const team = getTeam();
+  const activeDates = allDates.filter(d => data[d] && Object.keys(data[d]).length > 0);
+  let csv = `No,ID,Nama,${activeDates.join(',')},Total\n`;
+  team.sort((a,b) => a.name.localeCompare(b.name)).forEach((mem,i) => {
+    let total = 0;
+    const cells = activeDates.map(d => { const r = data[d]?.[mem.id]; if(r){total++;return r.jam;}return ''; });
+    csv += `${i+1},${mem.id},"${mem.name}",${cells.join(',')},${total}\n`;
+  });
+  const a = document.createElement('a');
+  a.download = `rekap-${y}-${String(m+1).padStart(2,'0')}.csv`;
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.click();
+  toast('📄 CSV diunduh!');
+}
+
+function exportAll() {
+  const a = document.createElement('a');
+  a.download = 'absensi-backup.json';
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({data:getData(),team:getTeam()},null,2)],{type:'application/json'}));
+  a.click(); toast('💾 Backup diunduh!');
+}
+
+function importBackup() { document.getElementById('import-file').click(); }
+
+async function doImport(inp) {
+  const file = inp.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if (!backup.data || !backup.team) { toast('⚠️ Format backup tidak valid'); return; }
+      if (!confirm(`Import backup? Data saat ini akan ditimpa.`)) return;
+      _data = backup.data; _team = backup.team;
+      showLoadingOverlay('Mengupload backup ke GitHub…');
+      const dSHA = await ghWriteJSON(DATA_FILE, _data, _dataSHA);
+      const tSHA = await ghWriteJSON(TEAM_FILE, _team, _teamSHA);
+      if (dSHA) _dataSHA = dSHA;
+      if (tSHA) _teamSHA = tSHA;
+      hideLoadingOverlay();
+      refreshUI(); toast('✓ Backup berhasil diimport!');
+    } catch(err) { hideLoadingOverlay(); toast('⚠️ Gagal import: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ─── ADMIN ────────────────────────────────────────────────
+function adminLogin() {
+  if (document.getElementById('admin-pass').value === ADMIN_PASS) {
+    isAdmin = true;
+    document.getElementById('app-root').classList.add('is-admin');
+    document.getElementById('admin-gate').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    document.getElementById('admin-date').value = getDefaultDate() || todayStr();
+    renderTeamList(); loadGithubConfigFields(); toast('✓ Login berhasil');
+    renderHadirList();
+  } else toast('⚠️ Password salah!');
+}
+
+function adminLogout() {
+  isAdmin = false;
+  document.getElementById('app-root').classList.remove('is-admin');
+  document.getElementById('admin-gate').style.display = 'block';
+  document.getElementById('admin-panel').style.display = 'none';
+  document.getElementById('admin-pass').value = '';
+  renderHadirList();
+}
+
+function saveDefaultDate() {
+  const d = document.getElementById('admin-date').value;
+  localStorage.setItem('abs_defdate', d);
+  document.getElementById('inp-tanggal').value = d;
+  updateTodayLabel(); renderHadirList(); toast('✓ Tanggal default: ' + fmtShort(d));
+}
+
+function renderTeamList() {
+  const team = getTeam().sort((a,b) => a.name.localeCompare(b.name));
+  const ul = document.getElementById('team-list'); ul.innerHTML = '';
+  team.forEach(m => {
+    const li = document.createElement('li'); li.className = 'team-item';
+    li.innerHTML = `
+      <div class="team-item-left">
+        <div class="avatar">${initials(m.name)}</div>
+        <div><div class="team-name">${m.name}</div><div class="team-id">ID: ${m.id}</div></div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeMember('${m.id}')">Hapus</button>
+    `;
+    ul.appendChild(li);
+  });
+}
+
+async function addMember() {
+  const name = document.getElementById('new-name').value.trim().toUpperCase();
+  const id   = document.getElementById('new-id').value.trim();
+  if (!name) { toast('⚠️ Masukkan nama'); return; }
+  if (!id)   { toast('⚠️ Masukkan ID'); return; }
+  if (_team.find(m => m.id === id)) { toast('⚠️ ID sudah digunakan'); return; }
+  _team.push({id, name});
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-id').value = '';
+  renderTeamList(); populateDropdown(); renderHadirList(); renderRekapMonth();
+  toast(`✓ ${name} ditambahkan`);
+  await saveTeam();
+}
+
+async function removeMember(id) {
+  const m = _team.find(x => x.id === id);
+  if (!confirm(`Hapus ${m?.name}?`)) return;
+  _team = _team.filter(x => x.id !== id);
+  renderTeamList(); populateDropdown(); renderHadirList(); renderRekapMonth();
+  toast('🗑 Anggota dihapus');
+  await saveTeam();
+}
+
+async function clearMonth() {
+  const y = rekapMonth.getFullYear(), m = rekapMonth.getMonth();
+  const prefix = `${y}-${String(m+1).padStart(2,'0')}`;
+  if (!confirm(`Hapus semua data ${prefix}?`)) return;
+  Object.keys(_data).filter(k => k.startsWith(prefix)).forEach(k => delete _data[k]);
+  renderHadirList(); renderRekapMonth(); toast('🗑 Data bulan dihapus');
+  await saveData();
+}
+
+async function clearAll() {
+  if (!confirm('Hapus SEMUA data? Tidak bisa dibatalkan!')) return;
+  _data = {};
+  renderHadirList(); renderRekapMonth(); toast('🗑 Semua data dihapus');
+  await saveData();
+}
+
+// ─── MODAL ────────────────────────────────────────────────
+function openModal(name, foto) {
+  document.getElementById('modal-title').textContent = name;
+  document.getElementById('modal-img').src = foto;
+  document.getElementById('photo-modal').classList.add('open');
+}
+function closeModal() { document.getElementById('photo-modal').classList.remove('open'); }
+
+// ─── TOAST ────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ─── UTILS ────────────────────────────────────────────────
+function fmtShort(str) {
+  if (!str) return '';
+  return new Date(str + 'T00:00:00').toLocaleDateString('id-ID', {day:'numeric',month:'short',year:'numeric'});
+}
+function initials(name) {
+  return name.split(' ').slice(0,2).map(w => w[0]||'').join('').toUpperCase();
+}
+
+// ─── BOOT ─────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
