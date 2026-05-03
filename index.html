@@ -942,11 +942,17 @@ async function npRead(blobId) {
       method: 'GET',
       headers: { 'Accept': 'application/json' }
     });
-    if (!res.ok) {
-      console.error('npRead failed', res.status, await res.text());
+    if (res.status === 404) {
+      console.warn('npRead 404 — blob belum ada isi');
       return null;
     }
-    return await res.json();
+    if (!res.ok) {
+      console.error('npRead failed', res.status);
+      return null;
+    }
+    const txt = await res.text();
+    if (!txt || txt.trim() === '') return null;
+    return JSON.parse(txt);
   } catch(e) {
     console.error('npRead exception', e);
     return null;
@@ -993,7 +999,6 @@ async function syncAll(silent = false) {
   _syncing = true;
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
-  // Cek apakah Blob ID sudah dikonfigurasi
   if (!npIdReady(NP_ID_DATA) || !npIdReady(NP_ID_TEAM)) {
     setSyncStatus('error', '⚠️ Blob ID jsonblob.com belum diisi di file');
     _syncing = false; return;
@@ -1003,18 +1008,22 @@ async function syncAll(silent = false) {
     // ── Baca data absensi ──
     const fetchedData = await npRead(NP_ID_DATA);
     if (fetchedData === null) {
-      setSyncStatus('error', 'Gagal baca data absensi dari jsonblob.com');
-      _syncing = false; return;
+      // Blob baru/kosong — inisialisasi {}
+      _data = {};
+      await npWrite(NP_ID_DATA, {});
+    } else {
+      _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
     }
-    _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
 
     // ── Baca data tim ──
     const fetchedTeam = await npRead(NP_ID_TEAM);
-    if (fetchedTeam === null) {
-      setSyncStatus('error', 'Gagal baca data tim dari jsonblob.com');
-      _syncing = false; return;
+    if (fetchedTeam === null || (Array.isArray(fetchedTeam) && fetchedTeam.length === 0)) {
+      // Blob baru/kosong — isi dengan DEFAULT_TEAM
+      _team = DEFAULT_TEAM;
+      await npWrite(NP_ID_TEAM, DEFAULT_TEAM);
+    } else {
+      _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
     }
-    _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
 
     _lastSync = Date.now();
     const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
