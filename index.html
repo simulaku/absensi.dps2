@@ -955,7 +955,7 @@ async function npRead(scriptId) {
 async function npWrite(scriptId, payload) {
   try {
     const res = await fetch(`${NP_BASE}/${scriptId}`, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -1072,11 +1072,13 @@ async function boot() {
 }
 
 function init() {
-  populateDropdown(); setNow(); renderHadirList(); renderRekapMonth();
-  const dd = getDefaultDate();
-  if (dd) document.getElementById('inp-tanggal').value = dd;
-  document.getElementById('admin-date').value = dd || todayStr();
-  updateTodayLabel();
+  populateDropdown(); renderHadirList(); renderRekapMonth();
+  // Selalu set tanggal = hari ini, jam = sekarang
+  const now = new Date();
+  document.getElementById('inp-jam').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('inp-tanggal').value = todayStr();
+  document.getElementById('admin-date').value = todayStr();
+  updateTodayLabel(); renderHadirList();
 }
 
 function refreshUI() {
@@ -1183,7 +1185,7 @@ function compress(src, max, q, cb) {
 function setNow() {
   const now = new Date();
   document.getElementById('inp-jam').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  document.getElementById('inp-tanggal').value = getDefaultDate() || todayStr();
+  document.getElementById('inp-tanggal').value = todayStr();
   updateTodayLabel(); renderHadirList();
 }
 
