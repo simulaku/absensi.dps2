@@ -640,7 +640,7 @@ tr:last-child td { border-bottom:none; }
 <div class="setup-screen hidden" id="setup-screen">
   <div class="setup-logo">🗓️</div>
   <div class="setup-title">Absensi DPS 2</div>
-  <div class="setup-sub">App sudah terhubung ke npoint.io. Data tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
+  <div class="setup-sub">App sudah terhubung ke jsonblob.com. Data tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
   <div class="setup-card">
     <div class="setup-steps">
       <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
@@ -815,10 +815,10 @@ tr:last-child td { border-bottom:none; }
 
       <!-- NPOINT SETTINGS -->
       <div class="card">
-        <div class="card-title">☁️ Koneksi npoint.io</div>
+        <div class="card-title">☁️ Koneksi jsonblob.com</div>
         <div class="github-config-info">
-          Data tersimpan di <b>npoint.io</b> — gratis, tanpa token, realtime.<br>
-          Script ID sudah tertanam di file. Semua device bisa akses langsung.<br>
+          Data tersimpan di <b>jsonblob.com</b> — gratis, tanpa token, realtime.<br>
+          Blob ID sudah tertanam di file. Semua device bisa akses langsung.<br>
           <b>ID Data:</b> <span id="np-show-data" style="font-family:var(--mono);color:var(--accent2);font-size:10px">—</span><br>
           <b>ID Tim:</b> <span id="np-show-team" style="font-family:var(--mono);color:var(--accent2);font-size:10px">—</span>
         </div>
@@ -886,21 +886,22 @@ tr:last-child td { border-bottom:none; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-//  ABSENSI DPS 2 — npoint.io Realtime Integration
-//  Data flow: npoint.io scripts ←→ in-memory cache ←→ UI
-//  Tidak butuh token/key — cukup Script ID dari npoint.io
+//  ABSENSI DPS 2 — jsonblob.com Realtime Integration
+//  Data flow: jsonblob.com scripts ←→ in-memory cache ←→ UI
+//  Tidak butuh token/key — cukup Blob ID dari jsonblob.com
 // ═══════════════════════════════════════════════════════════
 
 const ADMIN_PASS = "Harmoni123";
 const CACHE_TTL  = 30 * 1000;
 
-// ─── NPOINT CONFIG ────────────────────────────────────────
-// Isi dengan Script ID dari npoint.io (lihat tutorial di Admin)
-// Contoh: jika URL npoint adalah https://api.npoint.io/abc123def456
-// maka Script ID-nya adalah: abc123def456
-const NP_ID_DATA = "636373886f29c392e843";   // ← script ID untuk data absensi
-const NP_ID_TEAM = "2df4e7e082c7ae141865";   // ← script ID untuk data tim
-const NP_BASE    = "https://api.npoint.io";
+// ─── JSONBLOB CONFIG ──────────────────────────────────────
+// jsonblob.com — gratis, tanpa token, PUT/GET bebas dari browser
+// Blob ID diambil dari URL setelah membuat blob di jsonblob.com
+// Contoh URL: https://jsonblob.com/api/jsonBlob/1234567890
+// Blob ID-nya: 1234567890
+const NP_ID_DATA = "019deecb-6580-720e-bf7a-33632d7e0927";   // ← Blob ID data absensi
+const NP_ID_TEAM = "019deecc-bbc8-7997-847c-0e08849d5927";   // ← Blob ID data tim
+const NP_BASE    = "https://jsonblob.com/api/jsonBlob";
 // ─────────────────────────────────────────────────────────
 
 let currentPhoto    = null;
@@ -909,7 +910,7 @@ let rekapMonth      = new Date(); rekapMonth.setDate(1);
 let activeTab       = 'checkin';
 let isAdmin         = false;
 
-// In-memory state (synced from npoint.io)
+// In-memory state (synced from jsonblob.com)
 let _data     = {};
 let _team     = [];
 let _lastSync = 0;
@@ -933,12 +934,13 @@ const DEFAULT_TEAM = [
 ];
 
 // ─── NPOINT HELPERS ──────────────────────────────────────
-// npoint.io: tidak butuh token/key, cukup Script ID
-// Baca data dari npoint script
-async function npRead(scriptId) {
+// jsonblob.com: tidak butuh token/key, cukup Blob ID
+// Baca data dari jsonblob script
+async function npRead(blobId) {
   try {
-    const res = await fetch(`${NP_BASE}/${scriptId}`, {
-      headers: { 'Content-Type': 'application/json' }
+    const res = await fetch(`${NP_BASE}/${blobId}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
     });
     if (!res.ok) {
       console.error('npRead failed', res.status, await res.text());
@@ -951,12 +953,15 @@ async function npRead(scriptId) {
   }
 }
 
-// Tulis/update data ke npoint script
-async function npWrite(scriptId, payload) {
+// Tulis/update data ke jsonblob script
+async function npWrite(blobId, payload) {
   try {
-    const res = await fetch(`${NP_BASE}/${scriptId}`, {
+    const res = await fetch(`${NP_BASE}/${blobId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -970,9 +975,9 @@ async function npWrite(scriptId, payload) {
   }
 }
 
-// Cek apakah Script ID sudah diisi (bukan placeholder)
+// Cek apakah Blob ID sudah diisi (bukan placeholder)
 function npIdReady(id) {
-  return id && id !== '' && !id.startsWith('GANTI_');
+  return id && id !== '' && !id.startsWith('GANTI_BLOB');
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
@@ -988,9 +993,9 @@ async function syncAll(silent = false) {
   _syncing = true;
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
-  // Cek apakah Script ID sudah dikonfigurasi
+  // Cek apakah Blob ID sudah dikonfigurasi
   if (!npIdReady(NP_ID_DATA) || !npIdReady(NP_ID_TEAM)) {
-    setSyncStatus('error', '⚠️ Script ID npoint belum diisi di file');
+    setSyncStatus('error', '⚠️ Blob ID jsonblob.com belum diisi di file');
     _syncing = false; return;
   }
 
@@ -998,7 +1003,7 @@ async function syncAll(silent = false) {
     // ── Baca data absensi ──
     const fetchedData = await npRead(NP_ID_DATA);
     if (fetchedData === null) {
-      setSyncStatus('error', 'Gagal baca data absensi dari npoint.io');
+      setSyncStatus('error', 'Gagal baca data absensi dari jsonblob.com');
       _syncing = false; return;
     }
     _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
@@ -1006,7 +1011,7 @@ async function syncAll(silent = false) {
     // ── Baca data tim ──
     const fetchedTeam = await npRead(NP_ID_TEAM);
     if (fetchedTeam === null) {
-      setSyncStatus('error', 'Gagal baca data tim dari npoint.io');
+      setSyncStatus('error', 'Gagal baca data tim dari jsonblob.com');
       _syncing = false; return;
     }
     _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
@@ -1023,16 +1028,16 @@ async function syncAll(silent = false) {
 }
 
 async function saveData() {
-  if (!npIdReady(NP_ID_DATA)) { toast('⚠️ Script ID data belum diisi'); return; }
+  if (!npIdReady(NP_ID_DATA)) { toast('⚠️ Blob ID data belum diisi'); return; }
   setSyncStatus('syncing', 'Menyimpan data…');
   const ok = await npWrite(NP_ID_DATA, _data);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
-  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke npoint.io!'); }
+  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke jsonblob.com!'); }
 }
 
 async function saveTeam() {
-  if (!npIdReady(NP_ID_TEAM)) { toast('⚠️ Script ID tim belum diisi'); return; }
+  if (!npIdReady(NP_ID_TEAM)) { toast('⚠️ Blob ID tim belum diisi'); return; }
   setSyncStatus('syncing', 'Menyimpan tim…');
   const ok = await npWrite(NP_ID_TEAM, _team);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
@@ -1051,13 +1056,18 @@ setInterval(() => {
 const getData = () => _data;
 const getTeam = () => (_team && _team.length) ? _team : DEFAULT_TEAM;
 const getDefaultDate = () => localStorage.getItem('abs_defdate') || '';
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+};
 
 // ─── SETUP / CONNECT ──────────────────────────────────────
 // Tidak diperlukan lagi (token hardcoded), tapi tetap ada agar tidak error
 async function connectGithub() {
   document.getElementById('setup-screen').classList.add('hidden');
-  showLoadingOverlay('Menghubungkan ke npoint.io…');
+  showLoadingOverlay('Menghubungkan ke jsonblob.com…');
   await syncAll();
   hideLoadingOverlay();
   init();
@@ -1065,7 +1075,7 @@ async function connectGithub() {
 
 // ─── BOOT ─────────────────────────────────────────────────
 async function boot() {
-  showLoadingOverlay('Menghubungkan ke npoint.io…');
+  showLoadingOverlay('Menghubungkan ke jsonblob.com…');
   await syncAll();
   hideLoadingOverlay();
   init();
@@ -1099,7 +1109,7 @@ function saveJBConfig() { /* tidak digunakan, config sudah hardcoded */ }
 function saveGithubConfig() { syncAll(); }
 
 function loadGithubConfigFields() {
-  // Tampilkan Script ID yang aktif
+  // Tampilkan Blob ID yang aktif
   const showData = document.getElementById('np-show-data');
   const showTeam = document.getElementById('np-show-team');
   if (showData) showData.textContent = npIdReady(NP_ID_DATA) ? NP_ID_DATA : '⚠️ belum diisi';
@@ -1109,17 +1119,18 @@ function loadGithubConfigFields() {
 async function testGithubConfig() {
   const el = document.getElementById('gh-test-result');
   el.style.display = 'block';
-  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi npoint.io…</div>';
+  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi jsonblob.com…</div>';
   if (!npIdReady(NP_ID_DATA)) {
-    el.innerHTML = '<div class="github-status err">⚠️ Script ID belum diisi di file index.html</div>';
+    el.innerHTML = '<div class="github-status err">⚠️ Blob ID belum diisi di file index.html</div>';
     return;
   }
   try {
     const res = await fetch(`${NP_BASE}/${NP_ID_DATA}`, {
-      headers: { 'Content-Type': 'application/json' }
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
     });
     if (res.ok) {
-      el.innerHTML = '<div class="github-status ok">✓ Koneksi npoint.io berhasil! Data tersinkron.</div>';
+      el.innerHTML = '<div class="github-status ok">✓ Koneksi jsonblob.com berhasil! Data tersinkron.</div>';
     } else {
       const txt = await res.text();
       el.innerHTML = `<div class="github-status err">✕ Error ${res.status}: ${res.statusText}<br><small>${txt.slice(0,120)}</small></div>`;
@@ -1223,7 +1234,7 @@ async function submitCheckin() {
   toast(`✓ ${member.name} check-in berhasil!`);
   resetForm(); renderHadirList(); renderRekapMonth();
 
-  // Save to npoint.io
+  // Save to jsonblob.com
   await saveData();
 }
 
@@ -1392,7 +1403,7 @@ async function doImport(inp) {
       if (!backup.data || !backup.team) { toast('⚠️ Format backup tidak valid'); return; }
       if (!confirm(`Import backup? Data saat ini akan ditimpa.`)) return;
       _data = backup.data; _team = backup.team;
-      showLoadingOverlay('Mengupload backup ke npoint.io…');
+      showLoadingOverlay('Mengupload backup ke jsonblob.com…');
       await saveData();
       await saveTeam();
       hideLoadingOverlay();
