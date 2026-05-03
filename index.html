@@ -640,7 +640,7 @@ tr:last-child td { border-bottom:none; }
 <div class="setup-screen hidden" id="setup-screen">
   <div class="setup-logo">🗓️</div>
   <div class="setup-title">Absensi DPS 2</div>
-  <div class="setup-sub">Hubungkan ke GitHub agar data absensi tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
+  <div class="setup-sub">App sudah terhubung ke npoint.io. Data tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
   <div class="setup-card">
     <div class="setup-steps">
       <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
@@ -813,35 +813,20 @@ tr:last-child td { border-bottom:none; }
         <button class="btn btn-secondary btn-sm" onclick="saveDefaultDate()">Simpan Tanggal</button>
       </div>
 
-      <!-- JSONBIN SETTINGS -->
+      <!-- NPOINT SETTINGS -->
       <div class="card">
-        <div class="card-title">🗄️ Koneksi JSONBin</div>
-        <div id="gh-hardcoded-banner" style="display:none"></div>
+        <div class="card-title">☁️ Koneksi npoint.io</div>
         <div class="github-config-info">
-          Simpan <b>Bin ID</b> dari JSONBin.io agar semua device bisa sync tanpa setup ulang.<br>
-          <b>X-Master-Key</b> sudah tertanam di file · Bin ID disimpan di sini.
+          Data tersimpan di <b>npoint.io</b> — gratis, tanpa token, realtime.<br>
+          Script ID sudah tertanam di file. Semua device bisa akses langsung.<br>
+          <b>ID Data:</b> <span id="np-show-data" style="font-family:var(--mono);color:var(--accent2);font-size:10px">—</span><br>
+          <b>ID Tim:</b> <span id="np-show-team" style="font-family:var(--mono);color:var(--accent2);font-size:10px">—</span>
         </div>
-
-        <div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:10px 12px;font-size:11px;color:#d4a04a;line-height:1.7;margin-bottom:14px">
-          📋 <b>Cara dapat Bin ID:</b><br>
-          1. Login ke <b>jsonbin.io</b><br>
-          2. Klik <b>Bins</b> → pilih bin <b>absensi-data</b><br>
-          3. Copy ID dari URL atau info bin (contoh: <b>6650abc123...</b>)<br>
-          4. Ulangi untuk bin <b>absensi-team</b>
-        </div>
-
-        <div class="field-label">Bin ID — Data Absensi</div>
-        <div class="field"><input type="text" id="jb-bin-data" placeholder="6650a1234abc56def7890123" style="font-family:var(--mono);font-size:12px"></div>
-        <div class="field-label">Bin ID — Data Tim</div>
-        <div class="field"><input type="text" id="jb-bin-team" placeholder="6650b9876xyz12abc3456789" style="font-family:var(--mono);font-size:12px"></div>
-
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="saveJBConfig()" style="margin-bottom:8px">💾 Simpan Bin ID</button>
           <button class="btn btn-ghost btn-sm" onclick="testGithubConfig()" style="margin-bottom:8px">🔗 Test Koneksi</button>
           <button class="btn btn-secondary btn-sm" onclick="syncAll()">⟳ Sync Manual</button>
         </div>
         <div id="gh-test-result" style="margin-top:8px;display:none"></div>
-        <div id="jb-current-ids" style="margin-top:10px;font-size:10px;color:var(--muted);font-family:var(--mono);line-height:1.8"></div>
       </div>
 
       <div class="card">
@@ -901,21 +886,21 @@ tr:last-child td { border-bottom:none; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-//  ABSENSI DPS 2 — JSONBin.io Realtime Integration
-//  Data flow: JSONBin bins ←→ in-memory cache ←→ UI
+//  ABSENSI DPS 2 — npoint.io Realtime Integration
+//  Data flow: npoint.io scripts ←→ in-memory cache ←→ UI
+//  Tidak butuh token/key — cukup Script ID dari npoint.io
 // ═══════════════════════════════════════════════════════════
 
 const ADMIN_PASS = "Harmoni123";
 const CACHE_TTL  = 30 * 1000;
 
-// ─── JSONBIN CONFIG ───────────────────────────────────────
-// Ganti dengan Master Key JSONBin kamu
-const JB_MASTER_KEY  = "$2a$10$TGsxXgBx/PRs2.mXtFL89.yNU89HNkDvlUqnGk8cLSudxvRiXPvny";
-const JB_API_BASE    = "https://api.jsonbin.io/v3/b";
-// Bin ID hardcoded — diisi via panel Admin setelah buat bin di JSONBin
-// Kosongkan dulu, isi via Admin → Koneksi JSONBin setelah setup
-const JB_BIN_DATA_HC = "69f75c1836566621a81dd255";
-const JB_BIN_TEAM_HC = "69f75c3daaba88219767ab4b";
+// ─── NPOINT CONFIG ────────────────────────────────────────
+// Isi dengan Script ID dari npoint.io (lihat tutorial di Admin)
+// Contoh: jika URL npoint adalah https://api.npoint.io/abc123def456
+// maka Script ID-nya adalah: abc123def456
+const NP_ID_DATA = "636373886f29c392e843";   // ← script ID untuk data absensi
+const NP_ID_TEAM = "2df4e7e082c7ae141865";   // ← script ID untuk data tim
+const NP_BASE    = "https://api.npoint.io";
 // ─────────────────────────────────────────────────────────
 
 let currentPhoto    = null;
@@ -924,7 +909,7 @@ let rekapMonth      = new Date(); rekapMonth.setDate(1);
 let activeTab       = 'checkin';
 let isAdmin         = false;
 
-// In-memory state (synced from JSONBin)
+// In-memory state (synced from npoint.io)
 let _data     = {};
 let _team     = [];
 let _lastSync = 0;
@@ -947,94 +932,47 @@ const DEFAULT_TEAM = [
   {id:'9684',name:'NI PUTU SUGIANTARI'},
 ];
 
-// ─── JSONBIN HELPERS ──────────────────────────────────────
-// localStorage keys untuk menyimpan Bin ID (dibuat otomatis pertama kali)
-function getBinId(key)     { return localStorage.getItem('abs_binid_' + key) || null; }
-function setBinId(key, id) { localStorage.setItem('abs_binid_' + key, id); }
-
-// Header standar JSONBin
-function jbHeaders(extra) {
-  return Object.assign({
-    'Content-Type': 'application/json',
-    'X-Master-Key': JB_MASTER_KEY,
-  }, extra || {});
+// ─── NPOINT HELPERS ──────────────────────────────────────
+// npoint.io: tidak butuh token/key, cukup Script ID
+// Baca data dari npoint script
+async function npRead(scriptId) {
+  try {
+    const res = await fetch(`${NP_BASE}/${scriptId}`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) {
+      console.error('npRead failed', res.status, await res.text());
+      return null;
+    }
+    return await res.json();
+  } catch(e) {
+    console.error('npRead exception', e);
+    return null;
+  }
 }
 
-// Buat bin baru → kembalikan bin ID atau null
-async function jbCreate(binName, payload) {
+// Tulis/update data ke npoint script
+async function npWrite(scriptId, payload) {
   try {
-    const res = await fetch(JB_API_BASE, {
+    const res = await fetch(`${NP_BASE}/${scriptId}`, {
       method: 'POST',
-      headers: jbHeaders({ 'X-Bin-Name': binName }),
-      body: JSON.stringify(payload),
-    });
-    const txt = await res.text();
-    if (!res.ok) {
-      console.error('jbCreate failed', res.status, txt);
-      return null;
-    }
-    const j = JSON.parse(txt);
-    return j.metadata && j.metadata.id ? j.metadata.id : null;
-  } catch(e) {
-    console.error('jbCreate exception', e);
-    return null;
-  }
-}
-
-// Baca bin → kembalikan record (data) atau null
-async function jbRead(binId) {
-  try {
-    const res = await fetch(`${JB_API_BASE}/${binId}/latest`, {
-      headers: jbHeaders(),
-    });
-    if (!res.ok) {
-      console.error('jbRead failed', res.status, await res.text());
-      return null;
-    }
-    const j = await res.json();
-    return j.record !== undefined ? j.record : null;
-  } catch(e) {
-    console.error('jbRead exception', e);
-    return null;
-  }
-}
-
-// Update bin → kembalikan true/false
-async function jbWrite(binId, payload) {
-  try {
-    const res = await fetch(`${JB_API_BASE}/${binId}`, {
-      method: 'PUT',
-      headers: jbHeaders({ 'X-Bin-Versioning': 'false' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      console.error('jbWrite failed', res.status, await res.text());
+      console.error('npWrite failed', res.status, await res.text());
       return false;
     }
     return true;
   } catch(e) {
-    console.error('jbWrite exception', e);
+    console.error('npWrite exception', e);
     return false;
   }
 }
 
-// Pastikan bin ada — cek hardcode dulu, lalu localStorage, lalu buat baru
-async function ensureBin(key, name, defaultVal) {
-  // 1. Cek konstanta hardcoded di file
-  if (key === 'data' && JB_BIN_DATA_HC) { setBinId('data', JB_BIN_DATA_HC); return JB_BIN_DATA_HC; }
-  if (key === 'team' && JB_BIN_TEAM_HC) { setBinId('team', JB_BIN_TEAM_HC); return JB_BIN_TEAM_HC; }
-  // 2. Cek localStorage (dari Admin panel)
-  let id = getBinId(key);
-  if (id) return id;
-  // 3. Coba buat bin baru
-  setSyncStatus('syncing', `Membuat bin ${name}…`);
-  id = await jbCreate(name, defaultVal);
-  if (id) {
-    setBinId(key, id);
-    console.log(`Bin created: ${name} = ${id}`);
-    return id;
-  }
-  return null;
+// Cek apakah Script ID sudah diisi (bukan placeholder)
+function npIdReady(id) {
+  return id && id !== '' && !id.startsWith('GANTI_');
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
@@ -1050,43 +988,28 @@ async function syncAll(silent = false) {
   _syncing = true;
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
-  try {
-    // ── Pastikan bin DATA ada ──
-    const dataBinId = await ensureBin('data', 'absensi-data', {});
-    if (!dataBinId) {
-      setSyncStatus('error', 'Gagal buat/akses bin data. Cek token JSONBin.');
-      _syncing = false; return;
-    }
+  // Cek apakah Script ID sudah dikonfigurasi
+  if (!npIdReady(NP_ID_DATA) || !npIdReady(NP_ID_TEAM)) {
+    setSyncStatus('error', '⚠️ Script ID npoint belum diisi di file');
+    _syncing = false; return;
+  }
 
-    // ── Baca bin DATA ──
-    const fetchedData = await jbRead(dataBinId);
+  try {
+    // ── Baca data absensi ──
+    const fetchedData = await npRead(NP_ID_DATA);
     if (fetchedData === null) {
-      setSyncStatus('error', 'Gagal baca data absensi dari JSONBin.');
+      setSyncStatus('error', 'Gagal baca data absensi dari npoint.io');
       _syncing = false; return;
     }
     _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
 
-    // ── Pastikan bin TEAM ada ──
-    let teamBinId = getBinId('team');
-    if (!teamBinId) {
-      setSyncStatus('syncing', 'Membuat bin tim…');
-      teamBinId = await jbCreate('absensi-team', DEFAULT_TEAM);
-      if (teamBinId) {
-        setBinId('team', teamBinId);
-        _team = DEFAULT_TEAM;
-      } else {
-        setSyncStatus('error', 'Gagal buat bin tim. Cek token JSONBin.');
-        _syncing = false; return;
-      }
-    } else {
-      // ── Baca bin TEAM ──
-      const fetchedTeam = await jbRead(teamBinId);
-      if (fetchedTeam === null) {
-        setSyncStatus('error', 'Gagal baca data tim dari JSONBin.');
-        _syncing = false; return;
-      }
-      _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
+    // ── Baca data tim ──
+    const fetchedTeam = await npRead(NP_ID_TEAM);
+    if (fetchedTeam === null) {
+      setSyncStatus('error', 'Gagal baca data tim dari npoint.io');
+      _syncing = false; return;
     }
+    _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
 
     _lastSync = Date.now();
     const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
@@ -1100,20 +1023,18 @@ async function syncAll(silent = false) {
 }
 
 async function saveData() {
-  const id = getBinId('data');
-  if (!id) { toast('⚠️ Bin data belum ada, coba sync ulang'); return; }
+  if (!npIdReady(NP_ID_DATA)) { toast('⚠️ Script ID data belum diisi'); return; }
   setSyncStatus('syncing', 'Menyimpan data…');
-  const ok = await jbWrite(id, _data);
+  const ok = await npWrite(NP_ID_DATA, _data);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
-  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke JSONBin!'); }
+  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke npoint.io!'); }
 }
 
 async function saveTeam() {
-  const id = getBinId('team');
-  if (!id) { toast('⚠️ Bin tim belum ada, coba sync ulang'); return; }
+  if (!npIdReady(NP_ID_TEAM)) { toast('⚠️ Script ID tim belum diisi'); return; }
   setSyncStatus('syncing', 'Menyimpan tim…');
-  const ok = await jbWrite(id, _team);
+  const ok = await npWrite(NP_ID_TEAM, _team);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tim tersimpan · ${now}`);
   else setSyncStatus('error', 'Gagal simpan tim');
@@ -1136,7 +1057,7 @@ const todayStr = () => new Date().toISOString().split('T')[0];
 // Tidak diperlukan lagi (token hardcoded), tapi tetap ada agar tidak error
 async function connectGithub() {
   document.getElementById('setup-screen').classList.add('hidden');
-  showLoadingOverlay('Menghubungkan ke JSONBin…');
+  showLoadingOverlay('Menghubungkan ke npoint.io…');
   await syncAll();
   hideLoadingOverlay();
   init();
@@ -1144,7 +1065,7 @@ async function connectGithub() {
 
 // ─── BOOT ─────────────────────────────────────────────────
 async function boot() {
-  showLoadingOverlay('Menghubungkan ke JSONBin…');
+  showLoadingOverlay('Menghubungkan ke npoint.io…');
   await syncAll();
   hideLoadingOverlay();
   init();
@@ -1172,51 +1093,31 @@ function hideLoadingOverlay() {
 }
 
 // ─── ADMIN PANEL — CONFIG SECTION ─────────────────────────
-function saveJBConfig() {
-  const binData = document.getElementById('jb-bin-data').value.trim();
-  const binTeam = document.getElementById('jb-bin-team').value.trim();
-  if (!binData || !binTeam) { toast('⚠️ Kedua Bin ID wajib diisi'); return; }
-  setBinId('data', binData);
-  setBinId('team', binTeam);
-  toast('✓ Bin ID disimpan! Sync sekarang…');
-  loadGithubConfigFields();
-  syncAll();
-}
-
-function saveGithubConfig() { saveJBConfig(); }
+function saveJBConfig() { /* tidak digunakan, config sudah hardcoded */ }
+function saveGithubConfig() { syncAll(); }
 
 function loadGithubConfigFields() {
-  const dataBinId = getBinId('data') || '';
-  const teamBinId = getBinId('team') || '';
-  const dataEl = document.getElementById('jb-bin-data');
-  const teamEl = document.getElementById('jb-bin-team');
-  if (dataEl && dataBinId) dataEl.value = dataBinId;
-  if (teamEl && teamBinId) teamEl.value = teamBinId;
-  const cur = document.getElementById('jb-current-ids');
-  if (cur) {
-    if (dataBinId && teamBinId) {
-      cur.innerHTML = `✅ Tersimpan:<br>Data: ${dataBinId}<br>Team: ${teamBinId}`;
-      cur.style.color = 'var(--accent2)';
-    } else {
-      cur.innerHTML = '⚠️ Bin ID belum diisi — isi lalu klik Simpan';
-      cur.style.color = 'var(--danger)';
-    }
-  }
+  // Tampilkan Script ID yang aktif
+  const showData = document.getElementById('np-show-data');
+  const showTeam = document.getElementById('np-show-team');
+  if (showData) showData.textContent = npIdReady(NP_ID_DATA) ? NP_ID_DATA : '⚠️ belum diisi';
+  if (showTeam) showTeam.textContent = npIdReady(NP_ID_TEAM) ? NP_ID_TEAM : '⚠️ belum diisi';
 }
 
 async function testGithubConfig() {
   const el = document.getElementById('gh-test-result');
   el.style.display = 'block';
-  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi JSONBin…</div>';
-  const id = getBinId('data');
-  if (!id) {
-    el.innerHTML = '<div class="github-status err">⚠️ Isi Bin ID dulu lalu klik Simpan.</div>';
+  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi npoint.io…</div>';
+  if (!npIdReady(NP_ID_DATA)) {
+    el.innerHTML = '<div class="github-status err">⚠️ Script ID belum diisi di file index.html</div>';
     return;
   }
   try {
-    const res = await fetch(`${JB_API_BASE}/${id}/latest`, { headers: jbHeaders() });
+    const res = await fetch(`${NP_BASE}/${NP_ID_DATA}`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
     if (res.ok) {
-      el.innerHTML = '<div class="github-status ok">✓ Koneksi JSONBin berhasil! Data tersinkron.</div>';
+      el.innerHTML = '<div class="github-status ok">✓ Koneksi npoint.io berhasil! Data tersinkron.</div>';
     } else {
       const txt = await res.text();
       el.innerHTML = `<div class="github-status err">✕ Error ${res.status}: ${res.statusText}<br><small>${txt.slice(0,120)}</small></div>`;
@@ -1320,7 +1221,7 @@ async function submitCheckin() {
   toast(`✓ ${member.name} check-in berhasil!`);
   resetForm(); renderHadirList(); renderRekapMonth();
 
-  // Save to GitHub
+  // Save to npoint.io
   await saveData();
 }
 
@@ -1489,7 +1390,7 @@ async function doImport(inp) {
       if (!backup.data || !backup.team) { toast('⚠️ Format backup tidak valid'); return; }
       if (!confirm(`Import backup? Data saat ini akan ditimpa.`)) return;
       _data = backup.data; _team = backup.team;
-      showLoadingOverlay('Mengupload backup ke JSONBin…');
+      showLoadingOverlay('Mengupload backup ke npoint.io…');
       await saveData();
       await saveTeam();
       hideLoadingOverlay();
