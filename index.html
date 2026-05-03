@@ -632,7 +632,7 @@ tr:last-child td { border-bottom:none; }
 <div class="setup-screen hidden" id="setup-screen">
   <div class="setup-logo">🗓️</div>
   <div class="setup-title">Absensi DPS 2</div>
-  <div class="setup-sub">Terhubung ke JSONBin.io — data absensi tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
+  <div class="setup-sub">Hubungkan ke GitHub agar data absensi tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
   <div class="setup-card">
     <div class="setup-steps">
       <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
@@ -710,7 +710,7 @@ tr:last-child td { border-bottom:none; }
         <div id="upload-placeholder">
           <div class="upload-icon">📷</div>
           <div class="upload-label">Tap untuk upload foto</div>
-          <div id="upload-sub-txt" class="upload-sub">Auto-kompres · tersimpan ke JSONBin</div>
+          <div id="upload-sub-txt" class="upload-sub">Auto-kompres · tersimpan base64</div>
         </div>
       </div>
       <div id="github-upload-status" style="display:none"></div>
@@ -810,14 +810,14 @@ tr:last-child td { border-bottom:none; }
         <div class="card-title">🗄️ Koneksi JSONBin</div>
         <!-- Banner: muncul jika config hardcoded -->
         <div id="gh-hardcoded-banner" style="display:none;background:rgba(110,231,183,0.07);border:1px solid rgba(110,231,183,0.25);border-radius:12px;padding:10px 12px;font-size:11px;color:var(--accent2);line-height:1.6;margin-bottom:12px">
-          ✅ <b>Terhubung ke JSONBin.io</b><br>
-          Token sudah tertanam di file. Data tersimpan cloud & real-time.<br>
-          Untuk ganti token, edit konstanta <b>JB_TOKEN</b> di index.html lalu upload ulang.
+          ✅ <b>Terhubung ke JSONBin.io.</b><br>
+          Semua device langsung bisa akses tanpa setup.<br>
+          Untuk ubah config, edit konstanta di bagian atas <b>index.html</b> lalu upload ulang.
         </div>
         <div class="github-config-info">
-          Data absensi &amp; anggota tim disimpan di <b>JSONBin.io</b> sebagai JSON cloud.<br>
-          <b>Token:</b> Master Key JSONBin (tertanam di file)<br>
-          <b>Bin Data:</b> absensi-data &nbsp;|&nbsp; <b>Bin Team:</b> absensi-team
+          Data absensi &amp; anggota tim disimpan di GitHub repo sebagai JSON.<br>
+          <b>Token:</b> Personal Access Token (scopes: <b>repo</b>)<br>
+          <b>File data:</b> <b>absensi-data.json</b> &amp; <b>absensi-team.json</b>
         </div>
         <div class="field-label">GitHub Token (PAT)</div>
         <div class="field"><input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx"></div>
@@ -894,17 +894,15 @@ tr:last-child td { border-bottom:none; }
 // ═══════════════════════════════════════════════════════════
 //  ABSENSI DPS 2 — JSONBin.io Realtime Integration
 //  Data flow: JSONBin bins ←→ in-memory cache ←→ UI
-//  Bin DATA : menyimpan absensi per tanggal
-//  Bin TEAM : menyimpan daftar anggota tim
 // ═══════════════════════════════════════════════════════════
 
 const ADMIN_PASS = "admin123";
-const CACHE_TTL  = 30 * 1000; // 30s sebelum auto re-sync
+const CACHE_TTL  = 30 * 1000;
 
 // ─── JSONBIN CONFIG ───────────────────────────────────────
-const JB_TOKEN   = "$2a$10$Er2OwoS4iNTWvaIKWxZAGON9Vv8E.u6j6R87IQl8/fNTGuxwR2WA";
-const JB_API     = "https://api.jsonbin.io/v3/b";
-// Bin ID disimpan di localStorage setelah pertama kali dibuat
+// Ganti dengan Master Key JSONBin kamu
+const JB_MASTER_KEY = "$2a$10$Er2OwoS4iNTWvaIKWxZAGON9Vv8E.u6j6R87IQl8/fNTGuxwR2WA";
+const JB_API_BASE   = "https://api.jsonbin.io/v3/b";
 // ─────────────────────────────────────────────────────────
 
 let currentPhoto    = null;
@@ -914,8 +912,8 @@ let activeTab       = 'checkin';
 let isAdmin         = false;
 
 // In-memory state (synced from JSONBin)
-let _data     = {};  // absensi data
-let _team     = [];  // team members
+let _data     = {};
+let _team     = [];
 let _lastSync = 0;
 let _syncing  = false;
 
@@ -937,68 +935,96 @@ const DEFAULT_TEAM = [
 ];
 
 // ─── JSONBIN HELPERS ──────────────────────────────────────
-const jbHeaders = (extra = {}) => ({
-  'Content-Type': 'application/json',
-  'X-Master-Key': JB_TOKEN,
-  'X-Bin-Versioning': 'false',
-  ...extra
-});
+// localStorage keys untuk menyimpan Bin ID (dibuat otomatis pertama kali)
+function getBinId(key)     { return localStorage.getItem('abs_binid_' + key) || null; }
+function setBinId(key, id) { localStorage.setItem('abs_binid_' + key, id); }
 
-function getBinId(key) { return localStorage.getItem('abs_bin_' + key) || null; }
-function setBinId(key, id) { localStorage.setItem('abs_bin_' + key, id); }
-
-// Buat bin baru, kembalikan bin_id
-async function jbCreate(name, payload) {
-  try {
-    const r = await fetch(JB_API, {
-      method: 'POST',
-      headers: { ...jbHeaders(), 'X-Bin-Name': name, 'X-Bin-Private': 'true' },
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) { console.error('jbCreate failed', await r.text()); return null; }
-    const j = await r.json();
-    return j.metadata.id;
-  } catch(e) { console.error('jbCreate exception', e); return null; }
+// Header standar JSONBin
+function jbHeaders(extra) {
+  return Object.assign({
+    'Content-Type': 'application/json',
+    'X-Master-Key': JB_MASTER_KEY,
+  }, extra || {});
 }
 
-// Baca bin, kembalikan record (payload) atau null
+// Buat bin baru → kembalikan bin ID atau null
+async function jbCreate(binName, payload) {
+  try {
+    const res = await fetch(JB_API_BASE, {
+      method: 'POST',
+      headers: jbHeaders({ 'X-Bin-Name': binName }),
+      body: JSON.stringify(payload),
+    });
+    const txt = await res.text();
+    if (!res.ok) {
+      console.error('jbCreate failed', res.status, txt);
+      return null;
+    }
+    const j = JSON.parse(txt);
+    return j.metadata && j.metadata.id ? j.metadata.id : null;
+  } catch(e) {
+    console.error('jbCreate exception', e);
+    return null;
+  }
+}
+
+// Baca bin → kembalikan record (data) atau null
 async function jbRead(binId) {
   try {
-    const r = await fetch(`${JB_API}/${binId}/latest`, { headers: jbHeaders() });
-    if (!r.ok) return null;
-    const j = await r.json();
-    return j.record;
-  } catch(e) { console.error('jbRead exception', e); return null; }
+    const res = await fetch(`${JB_API_BASE}/${binId}/latest`, {
+      headers: jbHeaders(),
+    });
+    if (!res.ok) {
+      console.error('jbRead failed', res.status, await res.text());
+      return null;
+    }
+    const j = await res.json();
+    return j.record !== undefined ? j.record : null;
+  } catch(e) {
+    console.error('jbRead exception', e);
+    return null;
+  }
 }
 
-// Update bin, kembalikan true/false
+// Update bin → kembalikan true/false
 async function jbWrite(binId, payload) {
   try {
-    const r = await fetch(`${JB_API}/${binId}`, {
+    const res = await fetch(`${JB_API_BASE}/${binId}`, {
       method: 'PUT',
-      headers: jbHeaders(),
-      body: JSON.stringify(payload)
+      headers: jbHeaders({ 'X-Bin-Versioning': 'false' }),
+      body: JSON.stringify(payload),
     });
-    return r.ok;
-  } catch(e) { console.error('jbWrite exception', e); return false; }
+    if (!res.ok) {
+      console.error('jbWrite failed', res.status, await res.text());
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.error('jbWrite exception', e);
+    return false;
+  }
 }
 
-// Pastikan bin ada, buat kalau belum
-async function ensureBin(key, name, defaultValue) {
+// Pastikan bin ada — buat kalau belum ada, simpan ID ke localStorage
+async function ensureBin(key, name, defaultVal) {
   let id = getBinId(key);
   if (!id) {
-    id = await jbCreate(name, defaultValue);
-    if (id) setBinId(key, id);
+    setSyncStatus('syncing', `Membuat bin ${name}…`);
+    id = await jbCreate(name, defaultVal);
+    if (id) {
+      setBinId(key, id);
+      console.log(`Bin created: ${name} = ${id}`);
+    }
   }
-  return id;
+  return id || null;
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
 function setSyncStatus(state, text) {
   const dot = document.getElementById('sync-dot');
   const txt = document.getElementById('sync-text');
-  dot.className = 'sync-dot ' + state;
-  txt.textContent = text;
+  if (dot) dot.className = 'sync-dot ' + state;
+  if (txt) txt.textContent = text;
 }
 
 async function syncAll(silent = false) {
@@ -1007,53 +1033,70 @@ async function syncAll(silent = false) {
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
   try {
-    // ── DATA BIN ──
-    let dataBinId = await ensureBin('data', 'absensi-data', {});
-    if (!dataBinId) { setSyncStatus('error', 'Gagal inisialisasi bin data'); _syncing = false; return; }
-    const fetchedData = await jbRead(dataBinId);
-    if (fetchedData === null) { setSyncStatus('error', 'Gagal baca data absensi'); _syncing = false; return; }
-    _data = fetchedData;
+    // ── Pastikan bin DATA ada ──
+    const dataBinId = await ensureBin('data', 'absensi-data', {});
+    if (!dataBinId) {
+      setSyncStatus('error', 'Gagal buat/akses bin data. Cek token JSONBin.');
+      _syncing = false; return;
+    }
 
-    // ── TEAM BIN ──
+    // ── Baca bin DATA ──
+    const fetchedData = await jbRead(dataBinId);
+    if (fetchedData === null) {
+      setSyncStatus('error', 'Gagal baca data absensi dari JSONBin.');
+      _syncing = false; return;
+    }
+    _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
+
+    // ── Pastikan bin TEAM ada ──
     let teamBinId = getBinId('team');
     if (!teamBinId) {
-      // Pertama kali: buat bin team dengan DEFAULT_TEAM
+      setSyncStatus('syncing', 'Membuat bin tim…');
       teamBinId = await jbCreate('absensi-team', DEFAULT_TEAM);
-      if (teamBinId) { setBinId('team', teamBinId); _team = DEFAULT_TEAM; }
-      else { setSyncStatus('error', 'Gagal inisialisasi bin team'); _syncing = false; return; }
+      if (teamBinId) {
+        setBinId('team', teamBinId);
+        _team = DEFAULT_TEAM;
+      } else {
+        setSyncStatus('error', 'Gagal buat bin tim. Cek token JSONBin.');
+        _syncing = false; return;
+      }
     } else {
+      // ── Baca bin TEAM ──
       const fetchedTeam = await jbRead(teamBinId);
-      if (fetchedTeam === null) { setSyncStatus('error', 'Gagal baca data tim'); _syncing = false; return; }
-      _team = Array.isArray(fetchedTeam) ? fetchedTeam : DEFAULT_TEAM;
+      if (fetchedTeam === null) {
+        setSyncStatus('error', 'Gagal baca data tim dari JSONBin.');
+        _syncing = false; return;
+      }
+      _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
     }
 
     _lastSync = Date.now();
-    const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
     setSyncStatus('synced', `Tersinkron · ${now}`);
     refreshUI();
   } catch(e) {
-    setSyncStatus('error', 'Error: ' + e.message);
     console.error('syncAll error', e);
+    setSyncStatus('error', 'Error: ' + e.message);
   }
   _syncing = false;
 }
 
 async function saveData() {
   const id = getBinId('data');
-  if (!id) { toast('⚠️ Bin belum siap, coba sync ulang'); return; }
+  if (!id) { toast('⚠️ Bin data belum ada, coba sync ulang'); return; }
   setSyncStatus('syncing', 'Menyimpan data…');
   const ok = await jbWrite(id, _data);
-  const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
-  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke JSONBin. Sync ulang!'); }
+  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke JSONBin!'); }
 }
 
 async function saveTeam() {
   const id = getBinId('team');
-  if (!id) { toast('⚠️ Bin team belum siap'); return; }
-  setSyncStatus('syncing', 'Menyimpan data tim…');
+  if (!id) { toast('⚠️ Bin tim belum ada, coba sync ulang'); return; }
+  setSyncStatus('syncing', 'Menyimpan tim…');
   const ok = await jbWrite(id, _team);
-  const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tim tersimpan · ${now}`);
   else setSyncStatus('error', 'Gagal simpan tim');
 }
@@ -1065,20 +1108,23 @@ setInterval(() => {
   }
 }, 15000);
 
-// ─── DATA ACCESSORS (in-memory) ───────────────────────────
+// ─── DATA ACCESSORS ───────────────────────────────────────
 const getData = () => _data;
-const setData = async d => { _data = d; await saveData(); };
-const getTeam = () => _team.length ? _team : DEFAULT_TEAM;
-const setTeam = async t => { _team = t; await saveTeam(); };
+const getTeam = () => (_team && _team.length) ? _team : DEFAULT_TEAM;
 const getDefaultDate = () => localStorage.getItem('abs_defdate') || '';
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-// ─── SETUP / CONNECT (JSONBin selalu tersambung via token) ─
-// Setup screen tidak lagi diperlukan karena token hardcoded.
-// Fungsi ini hanya disimpan agar referensi HTML tidak error.
-async function connectGithub() {}
+// ─── SETUP / CONNECT ──────────────────────────────────────
+// Tidak diperlukan lagi (token hardcoded), tapi tetap ada agar tidak error
+async function connectGithub() {
+  document.getElementById('setup-screen').classList.add('hidden');
+  showLoadingOverlay('Menghubungkan ke JSONBin…');
+  await syncAll();
+  hideLoadingOverlay();
+  init();
+}
 
-// ─── INIT ─────────────────────────────────────────────────
+// ─── BOOT ─────────────────────────────────────────────────
 async function boot() {
   showLoadingOverlay('Menghubungkan ke JSONBin…');
   await syncAll();
@@ -1107,42 +1153,48 @@ function hideLoadingOverlay() {
   document.getElementById('loading-overlay').classList.add('hidden');
 }
 
-// ─── JSONBIN CONFIG PANEL (admin) ─────────────────────────
+// ─── ADMIN PANEL — CONFIG SECTION ─────────────────────────
 function saveGithubConfig() {
-  // Dengan JSONBin, config sudah tertanam di kode (token hardcoded).
-  toast('✓ JSONBin sudah terkonfigurasi. Token tertanam di file.');
+  toast('✓ Menggunakan JSONBin. Token sudah tertanam di file.');
 }
 
 function loadGithubConfigFields() {
-  // Tampilkan banner hardcoded karena token sudah tertanam
+  const dataBinId = getBinId('data') || '(belum dibuat)';
+  const teamBinId = getBinId('team') || '(belum dibuat)';
   const banner = document.getElementById('gh-hardcoded-banner');
   if (banner) {
     banner.style.display = 'block';
-    banner.innerHTML = '✅ <b>Terhubung ke JSONBin.io</b><br>Token sudah tertanam di file. Data tersimpan cloud & real-time di semua device.';
+    banner.innerHTML = `✅ <b>Terhubung ke JSONBin.io</b><br>
+      Token tertanam di file · Data real-time multi-device<br>
+      <span style="font-family:var(--mono);font-size:10px;opacity:0.7">
+        Data Bin: ${dataBinId}<br>Team Bin: ${teamBinId}
+      </span>`;
   }
-  // Disable semua field config karena tidak relevan
   ['gh-token','gh-owner','gh-repo','gh-branch','gh-path'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) { el.value = '— JSONBin (token hardcoded) —'; el.disabled = true; }
+    if (!el) return;
+    el.disabled = true;
+    if (id === 'gh-token') el.value = '*** JSONBin Master Key (hardcoded) ***';
+    else if (id === 'gh-owner') el.value = 'jsonbin.io';
+    else if (id === 'gh-repo') el.value = `Data: ${dataBinId}`;
+    else if (id === 'gh-branch') el.value = 'JSONBin Cloud';
+    else if (id === 'gh-path') el.value = `Team: ${teamBinId}`;
   });
-  // Tampilkan Bin IDs di field yang ada
-  const dataBinId = getBinId('data') || 'belum dibuat';
-  const teamBinId = getBinId('team') || 'belum dibuat';
-  const tokenEl = document.getElementById('gh-token');
-  if (tokenEl) tokenEl.value = `Data BinID: ${dataBinId} | Team BinID: ${teamBinId}`;
 }
 
 async function testGithubConfig() {
   const el = document.getElementById('gh-test-result');
   el.style.display = 'block';
   el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi JSONBin…</div>';
+  const id = getBinId('data');
+  if (!id) {
+    el.innerHTML = '<div class="github-status err">⚠️ Bin belum ada. Coba refresh halaman.</div>';
+    return;
+  }
   try {
-    // Coba baca bin data sebagai test
-    const id = getBinId('data');
-    if (!id) { el.innerHTML = '<div class="github-status err">⚠️ Bin belum dibuat, coba sync dulu</div>'; return; }
-    const r = await fetch(`${JB_API}/${id}/latest`, { headers: jbHeaders() });
-    if (r.ok) el.innerHTML = '<div class="github-status ok">✓ Koneksi JSONBin berhasil!</div>';
-    else el.innerHTML = `<div class="github-status err">✕ Error: ${r.status} ${r.statusText}</div>`;
+    const res = await fetch(`${JB_API_BASE}/${id}/latest`, { headers: jbHeaders() });
+    if (res.ok) el.innerHTML = '<div class="github-status ok">✓ Koneksi JSONBin berhasil!</div>';
+    else el.innerHTML = `<div class="github-status err">✕ Error ${res.status}: ${res.statusText}</div>`;
   } catch(e) {
     el.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
   }
@@ -1226,7 +1278,7 @@ async function submitCheckin() {
   if (!data[tanggal]) data[tanggal] = {};
   if (data[tanggal][nameId] && !confirm(`${member.name} sudah check-in jam ${data[tanggal][nameId].jam}. Timpa?`)) return;
 
-  // Foto disimpan sebagai base64 langsung di JSONBin (sudah dikompres kecil)
+  // Foto disimpan sebagai base64 langsung (sudah dikompres kecil)
   let fotoValue = currentPhoto || null;
 
   data[tanggal][nameId] = { jam, foto: fotoValue };
