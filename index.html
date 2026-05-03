@@ -632,7 +632,7 @@ tr:last-child td { border-bottom:none; }
 <div class="setup-screen hidden" id="setup-screen">
   <div class="setup-logo">🗓️</div>
   <div class="setup-title">Absensi DPS 2</div>
-  <div class="setup-sub">Hubungkan ke GitHub agar data absensi tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
+  <div class="setup-sub">Terhubung ke JSONBin.io — data absensi tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
   <div class="setup-card">
     <div class="setup-steps">
       <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
@@ -710,7 +710,7 @@ tr:last-child td { border-bottom:none; }
         <div id="upload-placeholder">
           <div class="upload-icon">📷</div>
           <div class="upload-label">Tap untuk upload foto</div>
-          <div id="upload-sub-txt" class="upload-sub">Auto-kompres · tersimpan ke GitHub</div>
+          <div id="upload-sub-txt" class="upload-sub">Auto-kompres · tersimpan ke JSONBin</div>
         </div>
       </div>
       <div id="github-upload-status" style="display:none"></div>
@@ -807,17 +807,17 @@ tr:last-child td { border-bottom:none; }
 
       <!-- GITHUB SETTINGS -->
       <div class="card">
-        <div class="card-title">🐙 Koneksi GitHub</div>
+        <div class="card-title">🗄️ Koneksi JSONBin</div>
         <!-- Banner: muncul jika config hardcoded -->
         <div id="gh-hardcoded-banner" style="display:none;background:rgba(110,231,183,0.07);border:1px solid rgba(110,231,183,0.25);border-radius:12px;padding:10px 12px;font-size:11px;color:var(--accent2);line-height:1.6;margin-bottom:12px">
-          ✅ <b>Config sudah tertanam di file.</b><br>
-          Semua device langsung bisa akses tanpa setup.<br>
-          Untuk ubah config, edit konstanta di bagian atas <b>index.html</b> lalu upload ulang.
+          ✅ <b>Terhubung ke JSONBin.io</b><br>
+          Token sudah tertanam di file. Data tersimpan cloud & real-time.<br>
+          Untuk ganti token, edit konstanta <b>JB_TOKEN</b> di index.html lalu upload ulang.
         </div>
         <div class="github-config-info">
-          Data absensi &amp; anggota tim disimpan di GitHub repo sebagai JSON.<br>
-          <b>Token:</b> Personal Access Token (scopes: <b>repo</b>)<br>
-          <b>File data:</b> <b>absensi-data.json</b> &amp; <b>absensi-team.json</b>
+          Data absensi &amp; anggota tim disimpan di <b>JSONBin.io</b> sebagai JSON cloud.<br>
+          <b>Token:</b> Master Key JSONBin (tertanam di file)<br>
+          <b>Bin Data:</b> absensi-data &nbsp;|&nbsp; <b>Bin Team:</b> absensi-team
         </div>
         <div class="field-label">GitHub Token (PAT)</div>
         <div class="field"><input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx"></div>
@@ -892,27 +892,20 @@ tr:last-child td { border-bottom:none; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-//  ABSENSI DPS 2 — GitHub Realtime Integration
-//  Data flow: GitHub JSON files ←→ in-memory cache ←→ UI
-//  Files in repo: absensi-data.json, absensi-team.json
+//  ABSENSI DPS 2 — JSONBin.io Realtime Integration
+//  Data flow: JSONBin bins ←→ in-memory cache ←→ UI
+//  Bin DATA : menyimpan absensi per tanggal
+//  Bin TEAM : menyimpan daftar anggota tim
 // ═══════════════════════════════════════════════════════════
 
 const ADMIN_PASS = "admin123";
-const DATA_FILE  = "absensi-data.json";
-const TEAM_FILE  = "absensi-team.json";
-const CACHE_TTL  = 30 * 1000; // 30s before auto re-sync
+const CACHE_TTL  = 30 * 1000; // 30s sebelum auto re-sync
 
-// ═══════════════════════════════════════════════════════════
-//  ⚙️  KONFIGURASI GITHUB — ISI SEKALI OLEH ADMIN
-//  Setelah diisi, upload ulang index.html ke repo.
-//  Semua device langsung bisa akses tanpa setup apapun.
-// ═══════════════════════════════════════════════════════════
-const GH_TOKEN  = "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";
-const GH_OWNER  = "simulaku";
-const GH_REPO   = "absensi.bali2";
-const GH_BRANCH = "main";
-const GH_PHOTO_PATH = "foto-absensi"; // folder foto di repo
-// ═══════════════════════════════════════════════════════════
+// ─── JSONBIN CONFIG ───────────────────────────────────────
+const JB_TOKEN   = "$2a$10$Er2OwoS4iNTWvaIKWxZAGON9Vv8E.u6j6R87IQl8/fNTGuxwR2WA";
+const JB_API     = "https://api.jsonbin.io/v3/b";
+// Bin ID disimpan di localStorage setelah pertama kali dibuat
+// ─────────────────────────────────────────────────────────
 
 let currentPhoto    = null;
 let currentPhotoUrl = null;
@@ -920,11 +913,9 @@ let rekapMonth      = new Date(); rekapMonth.setDate(1);
 let activeTab       = 'checkin';
 let isAdmin         = false;
 
-// In-memory state (synced from GitHub)
+// In-memory state (synced from JSONBin)
 let _data     = {};  // absensi data
 let _team     = [];  // team members
-let _dataSHA  = null;
-let _teamSHA  = null;
 let _lastSync = 0;
 let _syncing  = false;
 
@@ -945,96 +936,61 @@ const DEFAULT_TEAM = [
   {id:'9684',name:'NI PUTU SUGIANTARI'},
 ];
 
-// ─── GITHUB CONFIG ────────────────────────────────────────
-// Hardcoded config (dari konstanta di atas) diutamakan.
-// Fallback ke localStorage untuk perubahan via admin panel.
-function getGHConfig() {
-  if (GH_TOKEN && GH_OWNER && GH_REPO) {
-    const stored = (() => { try { return JSON.parse(localStorage.getItem('abs_ghconfig')||'{}'); } catch { return {}; } })();
-    return { token: GH_TOKEN, owner: GH_OWNER, repo: GH_REPO, branch: GH_BRANCH, path: stored.path || GH_PHOTO_PATH };
-  }
-  try { return JSON.parse(localStorage.getItem('abs_ghconfig')||'{}'); } catch { return {}; }
-}
-function setGHConfig(c) { localStorage.setItem('abs_ghconfig', JSON.stringify(c)); }
-function hasGHConfig() {
-  if (GH_TOKEN && GH_OWNER && GH_REPO) return true;
-  const c = getGHConfig();
-  return !!(c.token && c.owner && c.repo);
-}
+// ─── JSONBIN HELPERS ──────────────────────────────────────
+const jbHeaders = (extra = {}) => ({
+  'Content-Type': 'application/json',
+  'X-Master-Key': JB_TOKEN,
+  'X-Bin-Versioning': 'false',
+  ...extra
+});
 
-// ─── GITHUB API HELPERS ───────────────────────────────────
-function ghHeaders() {
-  const c = getGHConfig();
-  return {
-    Authorization: `token ${c.token}`,
-    Accept: 'application/vnd.github+json',
-    'Content-Type': 'application/json',
-  };
-}
-function ghApiUrl(file) {
-  const c = getGHConfig();
-  return `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${file}`;
-}
+function getBinId(key) { return localStorage.getItem('abs_bin_' + key) || null; }
+function setBinId(key, id) { localStorage.setItem('abs_bin_' + key, id); }
 
-// Read a JSON file from GitHub repo, returns {data, sha} or null
-async function ghReadJSON(file) {
+// Buat bin baru, kembalikan bin_id
+async function jbCreate(name, payload) {
   try {
-    const r = await fetch(ghApiUrl(file), { headers: ghHeaders() });
-    if (r.status === 404) return { data: null, sha: null };
-    if (!r.ok) return null;
-    const j = await r.json();
-    const content = atob(j.content.replace(/\s/g,''));
-    return { data: JSON.parse(content), sha: j.sha };
-  } catch(e) {
-    console.error('ghReadJSON error', file, e);
-    return null;
-  }
-}
-
-// Write a JSON file to GitHub repo (create or update)
-async function ghWriteJSON(file, data, sha) {
-  const c = getGHConfig();
-  const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-  const body = {
-    message: `Update ${file} [absensi-app]`,
-    content,
-    branch: c.branch || 'main',
-  };
-  if (sha) body.sha = sha;
-  try {
-    const r = await fetch(ghApiUrl(file), {
-      method: 'PUT',
-      headers: ghHeaders(),
-      body: JSON.stringify(body),
+    const r = await fetch(JB_API, {
+      method: 'POST',
+      headers: { ...jbHeaders(), 'X-Bin-Name': name, 'X-Bin-Private': 'true' },
+      body: JSON.stringify(payload)
     });
-    if (!r.ok) { const e = await r.json(); console.error('ghWriteJSON error', e); return null; }
+    if (!r.ok) { console.error('jbCreate failed', await r.text()); return null; }
     const j = await r.json();
-    return j.content.sha;
-  } catch(e) {
-    console.error('ghWriteJSON exception', e);
-    return null;
-  }
+    return j.metadata.id;
+  } catch(e) { console.error('jbCreate exception', e); return null; }
 }
 
-// Upload binary file (photo) to GitHub
-async function uploadToGithub(base64DataUrl, filename) {
-  const c = getGHConfig();
-  if (!c.token || !c.owner || !c.repo) return null;
-  const base64 = base64DataUrl.split(',')[1];
-  const folder = c.path ? c.path.replace(/\/$/,'') + '/' : '';
-  const filePath = `${folder}${filename}`;
-  const apiUrl = `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${filePath}`;
+// Baca bin, kembalikan record (payload) atau null
+async function jbRead(binId) {
   try {
-    let sha = null;
-    const check = await fetch(apiUrl, { headers: ghHeaders() });
-    if (check.ok) { const j = await check.json(); sha = j.sha; }
-    const body = { message: `Foto absensi: ${filename}`, content: base64, branch: c.branch || 'main' };
-    if (sha) body.sha = sha;
-    const r = await fetch(apiUrl, { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
+    const r = await fetch(`${JB_API}/${binId}/latest`, { headers: jbHeaders() });
     if (!r.ok) return null;
-    const data = await r.json();
-    return data.content.download_url;
-  } catch(e) { return null; }
+    const j = await r.json();
+    return j.record;
+  } catch(e) { console.error('jbRead exception', e); return null; }
+}
+
+// Update bin, kembalikan true/false
+async function jbWrite(binId, payload) {
+  try {
+    const r = await fetch(`${JB_API}/${binId}`, {
+      method: 'PUT',
+      headers: jbHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return r.ok;
+  } catch(e) { console.error('jbWrite exception', e); return false; }
+}
+
+// Pastikan bin ada, buat kalau belum
+async function ensureBin(key, name, defaultValue) {
+  let id = getBinId(key);
+  if (!id) {
+    id = await jbCreate(name, defaultValue);
+    if (id) setBinId(key, id);
+  }
+  return id;
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
@@ -1047,26 +1003,28 @@ function setSyncStatus(state, text) {
 
 async function syncAll(silent = false) {
   if (_syncing) return;
-  if (!hasGHConfig()) { setSyncStatus('offline', 'Belum terhubung ke GitHub'); return; }
   _syncing = true;
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
   try {
-    // Read data file
-    const dr = await ghReadJSON(DATA_FILE);
-    if (dr === null) { setSyncStatus('error', 'Gagal baca data dari GitHub'); _syncing = false; return; }
-    if (dr.data !== null) { _data = dr.data; _dataSHA = dr.sha; }
-    else { _data = {}; _dataSHA = null; }
+    // ── DATA BIN ──
+    let dataBinId = await ensureBin('data', 'absensi-data', {});
+    if (!dataBinId) { setSyncStatus('error', 'Gagal inisialisasi bin data'); _syncing = false; return; }
+    const fetchedData = await jbRead(dataBinId);
+    if (fetchedData === null) { setSyncStatus('error', 'Gagal baca data absensi'); _syncing = false; return; }
+    _data = fetchedData;
 
-    // Read team file
-    const tr = await ghReadJSON(TEAM_FILE);
-    if (tr === null) { setSyncStatus('error', 'Gagal baca tim dari GitHub'); _syncing = false; return; }
-    if (tr.data !== null) { _team = tr.data; _teamSHA = tr.sha; }
-    else {
-      // First time: push default team
-      _team = DEFAULT_TEAM;
-      const newSHA = await ghWriteJSON(TEAM_FILE, _team, null);
-      if (newSHA) _teamSHA = newSHA;
+    // ── TEAM BIN ──
+    let teamBinId = getBinId('team');
+    if (!teamBinId) {
+      // Pertama kali: buat bin team dengan DEFAULT_TEAM
+      teamBinId = await jbCreate('absensi-team', DEFAULT_TEAM);
+      if (teamBinId) { setBinId('team', teamBinId); _team = DEFAULT_TEAM; }
+      else { setSyncStatus('error', 'Gagal inisialisasi bin team'); _syncing = false; return; }
+    } else {
+      const fetchedTeam = await jbRead(teamBinId);
+      if (fetchedTeam === null) { setSyncStatus('error', 'Gagal baca data tim'); _syncing = false; return; }
+      _team = Array.isArray(fetchedTeam) ? fetchedTeam : DEFAULT_TEAM;
     }
 
     _lastSync = Date.now();
@@ -1075,42 +1033,34 @@ async function syncAll(silent = false) {
     refreshUI();
   } catch(e) {
     setSyncStatus('error', 'Error: ' + e.message);
+    console.error('syncAll error', e);
   }
   _syncing = false;
 }
 
-// Save data to GitHub
 async function saveData() {
-  if (!hasGHConfig()) return;
+  const id = getBinId('data');
+  if (!id) { toast('⚠️ Bin belum siap, coba sync ulang'); return; }
   setSyncStatus('syncing', 'Menyimpan data…');
-  const newSHA = await ghWriteJSON(DATA_FILE, _data, _dataSHA);
-  if (newSHA) {
-    _dataSHA = newSHA;
-    const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    setSyncStatus('synced', `Tersimpan · ${now}`);
-  } else {
-    setSyncStatus('error', 'Gagal simpan — coba sync ulang');
-    toast('⚠️ Gagal simpan ke GitHub. Sync ulang!');
-  }
+  const ok = await jbWrite(id, _data);
+  const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
+  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke JSONBin. Sync ulang!'); }
 }
 
-// Save team to GitHub
 async function saveTeam() {
-  if (!hasGHConfig()) return;
+  const id = getBinId('team');
+  if (!id) { toast('⚠️ Bin team belum siap'); return; }
   setSyncStatus('syncing', 'Menyimpan data tim…');
-  const newSHA = await ghWriteJSON(TEAM_FILE, _team, _teamSHA);
-  if (newSHA) {
-    _teamSHA = newSHA;
-    const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    setSyncStatus('synced', `Tim tersimpan · ${now}`);
-  } else {
-    setSyncStatus('error', 'Gagal simpan tim');
-  }
+  const ok = await jbWrite(id, _team);
+  const now = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  if (ok) setSyncStatus('synced', `Tim tersimpan · ${now}`);
+  else setSyncStatus('error', 'Gagal simpan tim');
 }
 
-// Auto-sync every 60s when tab is visible
+// Auto-sync setiap 60s saat tab aktif
 setInterval(() => {
-  if (document.visibilityState === 'visible' && hasGHConfig() && !_syncing) {
+  if (document.visibilityState === 'visible' && !_syncing) {
     if (Date.now() - _lastSync > 60000) syncAll(true);
   }
 }, 15000);
@@ -1123,50 +1073,17 @@ const setTeam = async t => { _team = t; await saveTeam(); };
 const getDefaultDate = () => localStorage.getItem('abs_defdate') || '';
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-// ─── SETUP / CONNECT ──────────────────────────────────────
-async function connectGithub() {
-  const token  = document.getElementById('setup-token').value.trim();
-  const owner  = document.getElementById('setup-owner').value.trim();
-  const repo   = document.getElementById('setup-repo').value.trim();
-  const branch = document.getElementById('setup-branch').value.trim() || 'main';
-  const statusEl = document.getElementById('setup-status');
-  if (!token || !owner || !repo) { toast('⚠️ Isi semua field'); return; }
-  statusEl.style.display = 'block';
-  statusEl.innerHTML = '<div class="github-status loading">⏳ Menghubungkan…</div>';
-  setGHConfig({ token, owner, repo, branch, path: '' });
-  // Test connection
-  try {
-    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json' }
-    });
-    if (!r.ok) {
-      statusEl.innerHTML = `<div class="github-status err">✕ Error ${r.status}: Repo tidak ditemukan atau token salah</div>`;
-      return;
-    }
-    statusEl.innerHTML = '<div class="github-status ok">✓ Berhasil! Memuat data…</div>';
-    setTimeout(() => {
-      document.getElementById('setup-screen').classList.add('hidden');
-      showLoadingOverlay('Memuat data dari GitHub…');
-      syncAll().then(() => { hideLoadingOverlay(); init(); });
-    }, 1000);
-  } catch(e) {
-    statusEl.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
-  }
-}
+// ─── SETUP / CONNECT (JSONBin selalu tersambung via token) ─
+// Setup screen tidak lagi diperlukan karena token hardcoded.
+// Fungsi ini hanya disimpan agar referensi HTML tidak error.
+async function connectGithub() {}
 
 // ─── INIT ─────────────────────────────────────────────────
 async function boot() {
-  // Jika hardcoded config sudah diisi → langsung load, skip setup screen
-  if (hasGHConfig()) {
-    showLoadingOverlay('Memuat data dari GitHub…');
-    await syncAll();
-    hideLoadingOverlay();
-    init();
-    return;
-  }
-  // Belum ada config sama sekali → tampilkan setup screen
+  showLoadingOverlay('Menghubungkan ke JSONBin…');
+  await syncAll();
   hideLoadingOverlay();
-  document.getElementById('setup-screen').classList.remove('hidden');
+  init();
 }
 
 function init() {
@@ -1190,58 +1107,41 @@ function hideLoadingOverlay() {
   document.getElementById('loading-overlay').classList.add('hidden');
 }
 
-// ─── GITHUB CONFIG SAVE (from admin panel) ────────────────
+// ─── JSONBIN CONFIG PANEL (admin) ─────────────────────────
 function saveGithubConfig() {
-  const c = {
-    token:  document.getElementById('gh-token').value.trim(),
-    owner:  document.getElementById('gh-owner').value.trim(),
-    repo:   document.getElementById('gh-repo').value.trim(),
-    path:   document.getElementById('gh-path').value.trim().replace(/\/$/,''),
-    branch: document.getElementById('gh-branch').value.trim() || 'main',
-  };
-  if (!c.token || !c.owner || !c.repo) { toast('⚠️ Token, Owner, dan Repo wajib diisi'); return; }
-  setGHConfig(c);
-  toast('✓ Konfigurasi disimpan');
-  syncAll();
+  // Dengan JSONBin, config sudah tertanam di kode (token hardcoded).
+  toast('✓ JSONBin sudah terkonfigurasi. Token tertanam di file.');
 }
 
 function loadGithubConfigFields() {
-  const c = getGHConfig();
-  const isHardcoded = !!(GH_TOKEN && GH_OWNER && GH_REPO);
-  if (isHardcoded) {
-    // Tampilkan info bahwa config sudah hardcoded di file
-    document.getElementById('gh-token').value  = '*** tersimpan di file ***';
-    document.getElementById('gh-token').disabled = true;
-    document.getElementById('gh-owner').value  = GH_OWNER;
-    document.getElementById('gh-owner').disabled = true;
-    document.getElementById('gh-repo').value   = GH_REPO;
-    document.getElementById('gh-repo').disabled = true;
-    document.getElementById('gh-branch').value = GH_BRANCH;
-    document.getElementById('gh-branch').disabled = true;
-    document.getElementById('gh-path').value   = c.path || GH_PHOTO_PATH;
-    // Tampilkan banner hardcoded
-    const banner = document.getElementById('gh-hardcoded-banner');
-    if (banner) banner.style.display = 'block';
-  } else {
-    if (c.token)  document.getElementById('gh-token').value  = c.token;
-    if (c.owner)  document.getElementById('gh-owner').value  = c.owner;
-    if (c.repo)   document.getElementById('gh-repo').value   = c.repo;
-    if (c.path)   document.getElementById('gh-path').value   = c.path;
-    document.getElementById('gh-branch').value = c.branch || 'main';
+  // Tampilkan banner hardcoded karena token sudah tertanam
+  const banner = document.getElementById('gh-hardcoded-banner');
+  if (banner) {
+    banner.style.display = 'block';
+    banner.innerHTML = '✅ <b>Terhubung ke JSONBin.io</b><br>Token sudah tertanam di file. Data tersimpan cloud & real-time di semua device.';
   }
+  // Disable semua field config karena tidak relevan
+  ['gh-token','gh-owner','gh-repo','gh-branch','gh-path'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = '— JSONBin (token hardcoded) —'; el.disabled = true; }
+  });
+  // Tampilkan Bin IDs di field yang ada
+  const dataBinId = getBinId('data') || 'belum dibuat';
+  const teamBinId = getBinId('team') || 'belum dibuat';
+  const tokenEl = document.getElementById('gh-token');
+  if (tokenEl) tokenEl.value = `Data BinID: ${dataBinId} | Team BinID: ${teamBinId}`;
 }
 
 async function testGithubConfig() {
-  const c = getGHConfig();
   const el = document.getElementById('gh-test-result');
   el.style.display = 'block';
-  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi…</div>';
-  if (!c.token || !c.owner || !c.repo) { el.innerHTML = '<div class="github-status err">⚠️ Simpan konfigurasi dulu</div>'; return; }
+  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi JSONBin…</div>';
   try {
-    const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}`, {
-      headers: { Authorization:`token ${c.token}`, Accept:'application/vnd.github+json' }
-    });
-    if (r.ok) el.innerHTML = '<div class="github-status ok">✓ Koneksi GitHub berhasil!</div>';
+    // Coba baca bin data sebagai test
+    const id = getBinId('data');
+    if (!id) { el.innerHTML = '<div class="github-status err">⚠️ Bin belum dibuat, coba sync dulu</div>'; return; }
+    const r = await fetch(`${JB_API}/${id}/latest`, { headers: jbHeaders() });
+    if (r.ok) el.innerHTML = '<div class="github-status ok">✓ Koneksi JSONBin berhasil!</div>';
     else el.innerHTML = `<div class="github-status err">✕ Error: ${r.status} ${r.statusText}</div>`;
   } catch(e) {
     el.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
@@ -1326,30 +1226,8 @@ async function submitCheckin() {
   if (!data[tanggal]) data[tanggal] = {};
   if (data[tanggal][nameId] && !confirm(`${member.name} sudah check-in jam ${data[tanggal][nameId].jam}. Timpa?`)) return;
 
-  // Upload photo
-  let fotoValue = null;
-  if (currentPhoto) {
-    const ghConf = getGHConfig();
-    if (ghConf.token && ghConf.owner && ghConf.repo) {
-      const statusEl = document.getElementById('github-upload-status');
-      statusEl.style.display = 'block';
-      statusEl.innerHTML = '<div class="github-status loading">⏳ Mengupload foto ke GitHub…</div>';
-      const ts = Date.now();
-      const filename = `${tanggal}_${nameId}_${ts}.jpg`;
-      const url = await uploadToGithub(currentPhoto, filename);
-      if (url) {
-        currentPhotoUrl = url; fotoValue = url;
-        statusEl.innerHTML = '<div class="github-status ok">✓ Foto tersimpan di GitHub</div>';
-        setTimeout(() => { statusEl.style.display='none'; }, 3000);
-      } else {
-        fotoValue = currentPhoto;
-        statusEl.innerHTML = '<div class="github-status err">⚠️ Upload foto gagal, tersimpan lokal</div>';
-        setTimeout(() => { statusEl.style.display='none'; }, 3000);
-      }
-    } else {
-      fotoValue = currentPhoto;
-    }
-  }
+  // Foto disimpan sebagai base64 langsung di JSONBin (sudah dikompres kecil)
+  let fotoValue = currentPhoto || null;
 
   data[tanggal][nameId] = { jam, foto: fotoValue };
   _data = data;
@@ -1531,11 +1409,9 @@ async function doImport(inp) {
       if (!backup.data || !backup.team) { toast('⚠️ Format backup tidak valid'); return; }
       if (!confirm(`Import backup? Data saat ini akan ditimpa.`)) return;
       _data = backup.data; _team = backup.team;
-      showLoadingOverlay('Mengupload backup ke GitHub…');
-      const dSHA = await ghWriteJSON(DATA_FILE, _data, _dataSHA);
-      const tSHA = await ghWriteJSON(TEAM_FILE, _team, _teamSHA);
-      if (dSHA) _dataSHA = dSHA;
-      if (tSHA) _teamSHA = tSHA;
+      showLoadingOverlay('Mengupload backup ke JSONBin…');
+      await saveData();
+      await saveTeam();
       hideLoadingOverlay();
       refreshUI(); toast('✓ Backup berhasil diimport!');
     } catch(err) { hideLoadingOverlay(); toast('⚠️ Gagal import: ' + err.message); }
