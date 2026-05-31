@@ -640,7 +640,7 @@ tr:last-child td { border-bottom:none; }
 <div class="setup-screen hidden" id="setup-screen">
   <div class="setup-logo">🗓️</div>
   <div class="setup-title">Absensi DPS 2</div>
-  <div class="setup-sub">App sudah terhubung ke jsonblob.com. Data tersimpan cloud dan bisa diakses dari device manapun secara realtime.</div>
+  <div class="setup-sub">App sudah terhubung ke cloud. Data tersimpan realtime dan bisa diakses dari device manapun.</div>
   <div class="setup-card">
     <div class="setup-steps">
       <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
@@ -813,36 +813,19 @@ tr:last-child td { border-bottom:none; }
         <button class="btn btn-secondary btn-sm" onclick="saveDefaultDate()">Simpan Tanggal</button>
       </div>
 
-      <!-- NPOINT SETTINGS -->
+      <!-- CLOUD STATUS -->
       <div class="card">
-        <div class="card-title">☁️ Koneksi jsonblob.com</div>
+        <div class="card-title">☁️ Koneksi Cloud</div>
         <div class="github-config-info">
-          Data tersimpan di <b>jsonblob.com</b> — gratis, tanpa token, realtime.<br>
-          Blob ID sudah tertanam di file. Semua device bisa akses langsung.<br>
-          <b>ID Data:</b> <span id="np-show-data" style="font-family:var(--mono);color:var(--accent2);font-size:10px">—</span><br>
-          <b>ID Tim:</b> <span id="np-show-team" style="font-family:var(--mono);color:var(--accent2);font-size:10px">—</span>
+          Data tersimpan di <b>npoint.io</b> — realtime, sync otomatis ke semua device.<br>
+          Foto diupload ke <b>imgbb.com</b> — tersimpan permanen di cloud.<br>
+          Tidak perlu konfigurasi tambahan.
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="testGithubConfig()" style="margin-bottom:8px">🔗 Test Koneksi</button>
+          <button class="btn btn-ghost btn-sm" onclick="testKoneksi()" style="margin-bottom:8px">🔗 Test Koneksi</button>
           <button class="btn btn-secondary btn-sm" onclick="syncAll()">⟳ Sync Manual</button>
         </div>
         <div id="gh-test-result" style="margin-top:8px;display:none"></div>
-      </div>
-
-      <!-- IMGBB KEY SETTINGS -->
-      <div class="card">
-        <div class="card-title">📷 Imgbb API Key (Foto Cloud)</div>
-        <div class="info-box">
-          Agar foto tersimpan di cloud dan tampil di semua device, masukkan <b>imgbb API key</b>.<br>
-          Daftar gratis di <b>imgbb.com</b> → My Profile → API → Get API key.<br>
-          Key disimpan di browser ini saja (localStorage).
-        </div>
-        <div class="field-label">API Key</div>
-        <div class="field" style="display:flex;gap:8px">
-          <input type="password" id="imgbb-key-input" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="flex:1">
-          <button class="btn btn-secondary btn-sm" onclick="saveImgbbKey()" style="flex-shrink:0">Simpan</button>
-        </div>
-        <div id="imgbb-status" style="margin-top:6px;font-size:11px;color:var(--muted)"></div>
       </div>
 
       <div class="card">
@@ -902,40 +885,33 @@ tr:last-child td { border-bottom:none; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-//  ABSENSI DPS 2 — jsonblob.com Realtime Integration
-//  Data flow: jsonblob.com scripts ←→ in-memory cache ←→ UI
-//  Tidak butuh token/key — cukup Blob ID dari jsonblob.com
+//  ABSENSI DPS 2 — npoint.io + imgbb.com
+//  Foto  → imgbb.com (URL permanen, tampil di semua device)
+//  Data  → npoint.io (JSON cloud, sync realtime)
 // ═══════════════════════════════════════════════════════════
 
-const ADMIN_PASS = "Harmoni123";
-const CACHE_TTL  = 30 * 1000;
+const ADMIN_PASS  = "Harmoni123";
 
-// ─── JSONBLOB CONFIG ──────────────────────────────────────
-// jsonblob.com — gratis, tanpa token, PUT/GET bebas dari browser
-// Blob ID diambil dari URL setelah membuat blob di jsonblob.com
-// Contoh URL: https://jsonblob.com/api/jsonBlob/1234567890
-// Blob ID-nya: 1234567890
-const NP_ID_DATA = "019deecb-6580-720e-bf7a-33632d7e0927";   // ← Blob ID data absensi
-const NP_ID_TEAM = "019deecc-bbc8-7997-847c-0e08849d5927";   // ← Blob ID data tim
-const NP_BASE    = "https://jsonblob.com/api/jsonBlob";
+// ─── KONFIGURASI CLOUD ────────────────────────────────────
+// npoint.io: buat script di https://www.npoint.io/
+// Tempel Endpoint ID di bawah (bagian setelah npoint.io/docs/)
+const NP_ID_DATA  = "GANTI_NPOINT_DATA_ID";   // ← endpoint data absensi
+const NP_ID_TEAM  = "GANTI_NPOINT_TEAM_ID";   // ← endpoint data tim
+const NP_BASE     = "https://api.npoint.io";
 
-// ─── IMGBB CONFIG ────────────────────────────────────────
-// Daftar gratis di https://api.imgbb.com/ → dapatkan API key
-// Lalu ganti string di bawah dengan API key Anda
-const IMGBB_KEY  = localStorage.getItem('imgbb_key') || '';
+// imgbb: API key sudah tertanam, tidak perlu konfigurasi
+const IMGBB_KEY   = "74a01349881670cba9d336875307a00d";
 // ─────────────────────────────────────────────────────────
 
-let currentPhoto    = null;
-let currentPhotoUrl = null;
-let rekapMonth      = new Date(); rekapMonth.setDate(1);
-let activeTab       = 'checkin';
-let isAdmin         = false;
+let currentPhoto  = null;
+let rekapMonth    = new Date(); rekapMonth.setDate(1);
+let activeTab     = 'checkin';
+let isAdmin       = false;
 
-// In-memory state (synced from jsonblob.com)
-let _data     = {};
-let _team     = [];
-let _lastSync = 0;
-let _syncing  = false;
+let _data         = {};
+let _team         = [];
+let _lastSync     = 0;
+let _syncing      = false;
 
 // ─── DEFAULT TEAM ─────────────────────────────────────────
 const DEFAULT_TEAM = [
@@ -954,79 +930,67 @@ const DEFAULT_TEAM = [
   {id:'9684',name:'NI PUTU SUGIANTARI'},
 ];
 
-// ─── NPOINT HELPERS ──────────────────────────────────────
-// jsonblob.com: tidak butuh token/key, cukup Blob ID
-// Baca data dari jsonblob script
-async function npRead(blobId) {
+// ─── NPOINT HELPERS ───────────────────────────────────────
+async function npRead(id) {
   try {
-    const res = await fetch(`${NP_BASE}/${blobId}`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    });
-    if (res.status === 404) {
-      console.warn('npRead 404 — blob belum ada isi');
-      return null;
-    }
-    if (!res.ok) {
-      console.error('npRead failed', res.status);
-      return null;
-    }
-    const txt = await res.text();
+    const r = await fetch(`${NP_BASE}/${id}`, { headers:{'Accept':'application/json'} });
+    if (r.status === 404) return null;
+    if (!r.ok) { console.error('npRead', r.status); return null; }
+    const txt = await r.text();
     if (!txt || txt.trim() === '') return null;
     return JSON.parse(txt);
-  } catch(e) {
-    console.error('npRead exception', e);
-    return null;
-  }
+  } catch(e) { console.error('npRead exc', e); return null; }
 }
 
-// Tulis/update data ke jsonblob script
-async function npWrite(blobId, payload) {
+async function npWrite(id, payload) {
   try {
     const body = JSON.stringify(payload);
-    const sizeKB = Math.round(body.length / 1024);
-    if (sizeKB > 480) {
-      console.error('npWrite: payload terlalu besar', sizeKB, 'KB');
-      toast('⚠️ Data terlalu besar (' + sizeKB + 'KB). Pastikan foto diupload via imgbb, bukan base64!');
-      return false;
-    }
-    const res = await fetch(`${NP_BASE}/${blobId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    const r = await fetch(`${NP_BASE}/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
       body,
     });
-    if (!res.ok) {
-      const errTxt = await res.text().catch(() => '');
-      console.error('npWrite failed', res.status, errTxt);
-      return false;
-    }
+    if (!r.ok) { console.error('npWrite', r.status, await r.text().catch(()=>'')); return false; }
     return true;
-  } catch(e) {
-    console.error('npWrite exception', e);
-    return false;
-  }
+  } catch(e) { console.error('npWrite exc', e); return false; }
+}
+
+function npReady() {
+  return NP_ID_DATA && !NP_ID_DATA.startsWith('GANTI') &&
+         NP_ID_TEAM && !NP_ID_TEAM.startsWith('GANTI');
 }
 
 // ─── IMGBB UPLOAD ─────────────────────────────────────────
 async function uploadToImgbb(base64Data) {
-  const key = localStorage.getItem('imgbb_key') || '';
-  if (!key) return null;
   try {
     const b64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
     const form = new FormData();
-    form.append('key', key);
+    form.append('key', IMGBB_KEY);
     form.append('image', b64);
-    const res = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body:form });
-    if (!res.ok) { console.error('imgbb upload failed', res.status); return null; }
-    const json = await res.json();
-    if (json.success && json.data?.url) return json.data.url;
-    return null;
-  } catch(e) { console.error('imgbb exception', e); return null; }
+    const r = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body:form });
+    if (!r.ok) { console.error('imgbb', r.status); return null; }
+    const j = await r.json();
+    return (j.success && j.data?.url) ? j.data.url : null;
+  } catch(e) { console.error('imgbb exc', e); return null; }
 }
 
-// Cek apakah Blob ID sudah diisi (bukan placeholder)
-function npIdReady(id) {
-  return id && id !== '' && !id.startsWith('GANTI_BLOB');
+// ─── COMPRESS (Promise-based) ──────────────────────────────
+function compress(src, max, q) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > max || h > max) {
+        if (w > h) { h = Math.round(h*max/w); w = max; }
+        else       { w = Math.round(w*max/h); h = max; }
+      }
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', q));
+    };
+    img.src = src;
+  });
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
@@ -1042,26 +1006,24 @@ async function syncAll(silent = false) {
   _syncing = true;
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
-  if (!npIdReady(NP_ID_DATA) || !npIdReady(NP_ID_TEAM)) {
-    setSyncStatus('error', '⚠️ Blob ID jsonblob.com belum diisi di file');
+  if (!npReady()) {
+    setSyncStatus('error', '⚠️ npoint ID belum diisi di kode');
     _syncing = false; return;
   }
 
   try {
-    // ── Baca data absensi ──
+    // Baca data absensi
     const fetchedData = await npRead(NP_ID_DATA);
     if (fetchedData === null) {
-      // Blob baru/kosong — inisialisasi {}
       _data = {};
       await npWrite(NP_ID_DATA, {});
     } else {
       _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
     }
 
-    // ── Baca data tim ──
+    // Baca data tim
     const fetchedTeam = await npRead(NP_ID_TEAM);
-    if (fetchedTeam === null || (Array.isArray(fetchedTeam) && fetchedTeam.length === 0)) {
-      // Blob baru/kosong — isi dengan DEFAULT_TEAM
+    if (!fetchedTeam || (Array.isArray(fetchedTeam) && fetchedTeam.length === 0)) {
       _team = DEFAULT_TEAM;
       await npWrite(NP_ID_TEAM, DEFAULT_TEAM);
     } else {
@@ -1073,23 +1035,23 @@ async function syncAll(silent = false) {
     setSyncStatus('synced', `Tersinkron · ${now}`);
     refreshUI();
   } catch(e) {
-    console.error('syncAll error', e);
-    setSyncStatus('error', 'Error: ' + e.message);
+    console.error('syncAll', e);
+    setSyncStatus('error', 'Gagal sync: ' + e.message);
   }
   _syncing = false;
 }
 
 async function saveData() {
-  if (!npIdReady(NP_ID_DATA)) { toast('⚠️ Blob ID data belum diisi'); return; }
-  setSyncStatus('syncing', 'Menyimpan data…');
+  if (!npReady()) { toast('⚠️ npoint ID belum dikonfigurasi'); return; }
+  setSyncStatus('syncing', 'Menyimpan…');
   const ok = await npWrite(NP_ID_DATA, _data);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
-  else { setSyncStatus('error', 'Gagal simpan — coba sync ulang'); toast('⚠️ Gagal simpan ke jsonblob.com!'); }
+  else { setSyncStatus('error', 'Gagal simpan!'); toast('⚠️ Gagal simpan ke cloud! Coba sync ulang.'); }
 }
 
 async function saveTeam() {
-  if (!npIdReady(NP_ID_TEAM)) { toast('⚠️ Blob ID tim belum diisi'); return; }
+  if (!npReady()) return;
   setSyncStatus('syncing', 'Menyimpan tim…');
   const ok = await npWrite(NP_ID_TEAM, _team);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
@@ -1097,37 +1059,33 @@ async function saveTeam() {
   else setSyncStatus('error', 'Gagal simpan tim');
 }
 
-// Auto-sync setiap 60s saat tab aktif
+// Auto-sync setiap 15 detik saat tab aktif (agar semua device update)
 setInterval(() => {
-  if (document.visibilityState === 'visible' && !_syncing) {
-    if (Date.now() - _lastSync > 60000) syncAll(true);
-  }
+  if (document.visibilityState === 'visible' && !_syncing) syncAll(true);
 }, 15000);
 
 // ─── DATA ACCESSORS ───────────────────────────────────────
-const getData = () => _data;
-const getTeam = () => (_team && _team.length) ? _team : DEFAULT_TEAM;
-const getDefaultDate = () => localStorage.getItem('abs_defdate') || '';
-const todayStr = () => {
+const getData       = () => _data;
+const getTeam       = () => (_team && _team.length) ? _team : DEFAULT_TEAM;
+const getDefaultDate= () => localStorage.getItem('abs_defdate') || '';
+const todayStr      = () => {
   const d = new Date();
   return d.getFullYear() + '-' +
     String(d.getMonth()+1).padStart(2,'0') + '-' +
     String(d.getDate()).padStart(2,'0');
 };
 
-// ─── SETUP / CONNECT ──────────────────────────────────────
-// Tidak diperlukan lagi (token hardcoded), tapi tetap ada agar tidak error
+// ─── SETUP / BOOT ─────────────────────────────────────────
 async function connectGithub() {
   document.getElementById('setup-screen').classList.add('hidden');
-  showLoadingOverlay('Menghubungkan ke jsonblob.com…');
+  showLoadingOverlay('Menghubungkan ke cloud…');
   await syncAll();
   hideLoadingOverlay();
   init();
 }
 
-// ─── BOOT ─────────────────────────────────────────────────
 async function boot() {
-  showLoadingOverlay('Menghubungkan ke jsonblob.com…');
+  showLoadingOverlay('Menghubungkan ke cloud…');
   await syncAll();
   hideLoadingOverlay();
   init();
@@ -1135,7 +1093,6 @@ async function boot() {
 
 function init() {
   populateDropdown(); renderHadirList(); renderRekapMonth();
-  // Selalu set tanggal = hari ini, jam = sekarang
   const now = new Date();
   document.getElementById('inp-jam').value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   document.getElementById('inp-tanggal').value = todayStr();
@@ -1156,47 +1113,37 @@ function hideLoadingOverlay() {
   document.getElementById('loading-overlay').classList.add('hidden');
 }
 
-// ─── ADMIN PANEL — CONFIG SECTION ─────────────────────────
-function saveJBConfig() { /* tidak digunakan, config sudah hardcoded */ }
+// ─── ADMIN PANEL ──────────────────────────────────────────
+function saveJBConfig() {}
 function saveGithubConfig() { syncAll(); }
 
-function loadGithubConfigFields() {
-  // Tampilkan Blob ID yang aktif
-  const showData = document.getElementById('np-show-data');
-  const showTeam = document.getElementById('np-show-team');
-  if (showData) showData.textContent = npIdReady(NP_ID_DATA) ? NP_ID_DATA : '⚠️ belum diisi';
-  if (showTeam) showTeam.textContent = npIdReady(NP_ID_TEAM) ? NP_ID_TEAM : '⚠️ belum diisi';
-}
+function loadGithubConfigFields() {}
 
-async function testGithubConfig() {
+async function testKoneksi() {
   const el = document.getElementById('gh-test-result');
   el.style.display = 'block';
-  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi jsonblob.com…</div>';
-  if (!npIdReady(NP_ID_DATA)) {
-    el.innerHTML = '<div class="github-status err">⚠️ Blob ID belum diisi di file index.html</div>';
-    return;
-  }
+  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi…</div>';
   try {
-    const res = await fetch(`${NP_BASE}/${NP_ID_DATA}`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    });
-    if (res.ok) {
-      el.innerHTML = '<div class="github-status ok">✓ Koneksi jsonblob.com berhasil! Data tersinkron.</div>';
+    const r = await fetch(`${NP_BASE}/${NP_ID_DATA}`, { headers:{'Accept':'application/json'} });
+    if (r.ok) {
+      el.innerHTML = '<div class="github-status ok">✓ Koneksi npoint.io OK! Data sync berjalan.</div>';
     } else {
-      const txt = await res.text();
-      el.innerHTML = `<div class="github-status err">✕ Error ${res.status}: ${res.statusText}<br><small>${txt.slice(0,120)}</small></div>`;
+      el.innerHTML = `<div class="github-status err">✕ Error ${r.status} — cek npoint ID di kode</div>`;
     }
   } catch(e) {
     el.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
   }
 }
 
+// stub agar tidak error jika dipanggil dari tempat lain
+async function testGithubConfig() { return testKoneksi(); }
+function saveImgbbKey() {}
+
 // ─── UI ───────────────────────────────────────────────────
 function populateDropdown() {
   const team = getTeam().sort((a,b) => a.name.localeCompare(b.name));
-  const sel = document.getElementById('sel-nama');
-  const cur = sel.value;
+  const sel  = document.getElementById('sel-nama');
+  const cur  = sel.value;
   sel.innerHTML = '<option value="">— Pilih nama —</option>';
   team.forEach(m => {
     const o = document.createElement('option');
@@ -1213,49 +1160,23 @@ function switchTab(tab, btn) {
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('action-bar').style.display = tab === 'checkin' ? 'flex' : 'none';
-  if (tab === 'rekap') { renderRekapMonth(); if (Date.now()-_lastSync > CACHE_TTL) syncAll(true); }
-  if (tab === 'admin') { renderTeamList(); loadGithubConfigFields(); }
+  if (tab === 'rekap')  { renderRekapMonth(); syncAll(true); }
+  if (tab === 'admin')  { renderTeamList(); loadGithubConfigFields(); }
 }
 
 // ─── PHOTO ────────────────────────────────────────────────
 function handlePhoto(inp) {
   const file = inp.files[0]; if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => compress(e.target.result, 800, 0.72, r => {
-    currentPhoto = r; currentPhotoUrl = null;
+  reader.onload = async e => {
+    const compressed = await compress(e.target.result, 800, 0.72);
+    currentPhoto = compressed;
     const prev = document.getElementById('upload-preview');
-    prev.src = r; prev.style.display = 'block';
+    prev.src = compressed; prev.style.display = 'block';
     document.getElementById('upload-placeholder').style.display = 'none';
     document.getElementById('photo-area').classList.add('has-photo');
-  });
-  reader.readAsDataURL(file);
-}
-
-function compress(src, max, q, cb) {
-  const img = new Image();
-  img.onload = () => {
-    const c = document.createElement('canvas');
-    let w = img.width, h = img.height;
-    if (w > max || h > max) { if (w > h) { h = Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
-    c.width=w; c.height=h;
-    c.getContext('2d').drawImage(img,0,0,w,h);
-    const result = c.toDataURL('image/jpeg', q);
-    if (cb) cb(result);
   };
-  img.src = src;
-  // Also return a Promise for async/await usage
-  return new Promise(resolve => {
-    const img2 = new Image();
-    img2.onload = () => {
-      const c = document.createElement('canvas');
-      let w = img2.width, h = img2.height;
-      if (w > max || h > max) { if (w > h) { h = Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
-      c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img2,0,0,w,h);
-      resolve(c.toDataURL('image/jpeg', q));
-    };
-    img2.src = src;
-  });
+  reader.readAsDataURL(file);
 }
 
 // ─── FORM ─────────────────────────────────────────────────
@@ -1278,42 +1199,37 @@ async function submitCheckin() {
   if (!nameId)  { toast('⚠️ Pilih nama terlebih dahulu'); return; }
   if (!jam)     { toast('⚠️ Masukkan jam masuk'); return; }
   if (!tanggal) { toast('⚠️ Masukkan tanggal'); return; }
-  if (!currentPhoto) { toast('📷 Foto bukti wajib diupload!'); document.getElementById('photo-area').style.animation='shake 0.4s ease'; setTimeout(()=>document.getElementById('photo-area').style.animation='',500); return; }
-  if (!currentPhoto) { toast('⚠️ Foto bukti wajib diupload!'); document.getElementById('photo-area').style.border='1.5px solid var(--danger)'; setTimeout(()=>{ document.getElementById('photo-area').style.border=''; },2000); return; }
+  if (!currentPhoto) {
+    toast('📷 Foto bukti wajib diupload!');
+    document.getElementById('photo-area').style.animation = 'shake 0.4s ease';
+    setTimeout(() => document.getElementById('photo-area').style.animation = '', 500);
+    return;
+  }
 
   const member = getTeam().find(m => m.id === nameId);
   const data   = getData();
   if (!data[tanggal]) data[tanggal] = {};
   if (data[tanggal][nameId] && !confirm(`${member.name} sudah check-in jam ${data[tanggal][nameId].jam}. Timpa?`)) return;
 
-  // Upload foto ke imgbb (jika ada API key), atau simpan thumbnail base64 sangat kecil
-  let fotoValue = null;
+  // Upload foto ke imgbb → dapat URL permanen
   const statusEl = document.getElementById('github-upload-status');
   statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div class="github-status loading">⏳ Mengupload foto…</div>';
 
-  if (currentPhoto) {
-    const imgbbKey = localStorage.getItem('imgbb_key') || '';
-    if (imgbbKey) {
-      statusEl.innerHTML = '<div class="github-status loading">⏳ Mengupload foto ke imgbb…</div>';
-      const url = await uploadToImgbb(currentPhoto);
-      if (url) {
-        fotoValue = url;
-        statusEl.innerHTML = '<div class="github-status ok">✓ Foto berhasil diupload</div>';
-      } else {
-        statusEl.innerHTML = '<div class="github-status err">⚠️ Upload foto gagal — absensi tetap disimpan tanpa foto</div>';
-      }
-    } else {
-      // Tidak ada imgbb key — kompres sangat kecil sebagai thumbnail (max 120px, kualitas 0.4)
-      // agar tidak melebihi limit jsonblob
-      fotoValue = await new Promise(res => compress(currentPhoto, 120, 0.40, res));
-      statusEl.innerHTML = '<div class="github-status loading">⚠️ Foto disimpan lokal saja (kecil). Atur imgbb API key agar foto tampil di device lain.</div>';
-    }
+  let fotoValue = null;
+  const url = await uploadToImgbb(currentPhoto);
+  if (url) {
+    fotoValue = url;
+    statusEl.innerHTML = '<div class="github-status ok">✓ Foto berhasil diupload ke cloud</div>';
+  } else {
+    // Fallback: simpan thumbnail kecil base64 agar absensi tetap tersimpan
+    fotoValue = await compress(currentPhoto, 100, 0.4);
+    statusEl.innerHTML = '<div class="github-status err">⚠️ Upload foto gagal — tersimpan lokal saja</div>';
   }
 
   data[tanggal][nameId] = { jam, foto: fotoValue };
   _data = data;
 
-  // Show confirm immediately, then save in background
   const box = document.getElementById('confirm-box');
   document.getElementById('confirm-msg').textContent = `✓ ${member.name} — ${jam} · ${fmtShort(tanggal)}`;
   box.classList.add('show');
@@ -1322,13 +1238,12 @@ async function submitCheckin() {
   toast(`✓ ${member.name} check-in berhasil!`);
   resetForm(); renderHadirList(); renderRekapMonth();
 
-  // Save to jsonblob.com
   await saveData();
 }
 
 function resetForm() {
   document.getElementById('sel-nama').value = '';
-  setNow(); currentPhoto = null; currentPhotoUrl = null;
+  setNow(); currentPhoto = null;
   document.getElementById('upload-preview').style.display = 'none';
   document.getElementById('upload-placeholder').style.display = 'block';
   document.getElementById('photo-area').classList.remove('has-photo');
@@ -1341,8 +1256,8 @@ function renderHadirList() {
   const data    = getData();
   const dayData = data[tanggal] || {};
   const team    = getTeam().sort((a,b) => a.name.localeCompare(b.name));
-  const ul = document.getElementById('hadir-list');
-  ul.innerHTML = '';
+  const ul      = document.getElementById('hadir-list');
+  ul.innerHTML  = '';
   let hadirCount = 0;
   team.forEach((m, i) => {
     const rec   = dayData[m.id];
@@ -1491,7 +1406,7 @@ async function doImport(inp) {
       if (!backup.data || !backup.team) { toast('⚠️ Format backup tidak valid'); return; }
       if (!confirm(`Import backup? Data saat ini akan ditimpa.`)) return;
       _data = backup.data; _team = backup.team;
-      showLoadingOverlay('Mengupload backup ke jsonblob.com…');
+      showLoadingOverlay('Mengupload backup…');
       await saveData();
       await saveTeam();
       hideLoadingOverlay();
@@ -1511,26 +1426,7 @@ function adminLogin() {
     document.getElementById('admin-date').value = getDefaultDate() || todayStr();
     renderTeamList(); loadGithubConfigFields(); toast('✓ Login berhasil');
     renderHadirList();
-    // Load imgbb key
-    const savedKey = localStorage.getItem('imgbb_key') || '';
-    if (savedKey) {
-      document.getElementById('imgbb-key-input').value = savedKey;
-      document.getElementById('imgbb-status').textContent = '✓ API key tersimpan di browser ini';
-      document.getElementById('imgbb-status').style.color = 'var(--accent2)';
-    } else {
-      document.getElementById('imgbb-status').textContent = '⚠️ Belum ada API key — foto hanya tersimpan lokal (tidak sync antar device)';
-      document.getElementById('imgbb-status').style.color = 'var(--accent3)';
-    }
   } else toast('⚠️ Password salah!');
-}
-
-function saveImgbbKey() {
-  const key = document.getElementById('imgbb-key-input').value.trim();
-  if (!key) { toast('⚠️ Masukkan API key terlebih dahulu'); return; }
-  localStorage.setItem('imgbb_key', key);
-  document.getElementById('imgbb-status').textContent = '✓ API key berhasil disimpan!';
-  document.getElementById('imgbb-status').style.color = 'var(--accent2)';
-  toast('✓ imgbb API key disimpan');
 }
 
 function adminLogout() {
@@ -1551,7 +1447,7 @@ function saveDefaultDate() {
 
 function renderTeamList() {
   const team = getTeam().sort((a,b) => a.name.localeCompare(b.name));
-  const ul = document.getElementById('team-list'); ul.innerHTML = '';
+  const ul   = document.getElementById('team-list'); ul.innerHTML = '';
   team.forEach(m => {
     const li = document.createElement('li'); li.className = 'team-item';
     li.innerHTML = `
@@ -1573,7 +1469,7 @@ async function addMember() {
   if (_team.find(m => m.id === id)) { toast('⚠️ ID sudah digunakan'); return; }
   _team.push({id, name});
   document.getElementById('new-name').value = '';
-  document.getElementById('new-id').value = '';
+  document.getElementById('new-id').value   = '';
   renderTeamList(); populateDropdown(); renderHadirList(); renderRekapMonth();
   toast(`✓ ${name} ditambahkan`);
   await saveTeam();
