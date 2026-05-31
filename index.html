@@ -829,6 +829,22 @@ tr:last-child td { border-bottom:none; }
         <div id="gh-test-result" style="margin-top:8px;display:none"></div>
       </div>
 
+      <!-- IMGBB KEY SETTINGS -->
+      <div class="card">
+        <div class="card-title">📷 Imgbb API Key (Foto Cloud)</div>
+        <div class="info-box">
+          Agar foto tersimpan di cloud dan tampil di semua device, masukkan <b>imgbb API key</b>.<br>
+          Daftar gratis di <b>imgbb.com</b> → My Profile → API → Get API key.<br>
+          Key disimpan di browser ini saja (localStorage).
+        </div>
+        <div class="field-label">API Key</div>
+        <div class="field" style="display:flex;gap:8px">
+          <input type="password" id="imgbb-key-input" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="flex:1">
+          <button class="btn btn-secondary btn-sm" onclick="saveImgbbKey()" style="flex-shrink:0">Simpan</button>
+        </div>
+        <div id="imgbb-status" style="margin-top:6px;font-size:11px;color:var(--muted)"></div>
+      </div>
+
       <div class="card">
         <div class="card-title">👥 Kelola Tim</div>
         <ul class="team-list" id="team-list"></ul>
@@ -902,6 +918,11 @@ const CACHE_TTL  = 30 * 1000;
 const NP_ID_DATA = "019deecb-6580-720e-bf7a-33632d7e0927";   // ← Blob ID data absensi
 const NP_ID_TEAM = "019deecc-bbc8-7997-847c-0e08849d5927";   // ← Blob ID data tim
 const NP_BASE    = "https://jsonblob.com/api/jsonBlob";
+
+// ─── IMGBB CONFIG ────────────────────────────────────────
+// Daftar gratis di https://api.imgbb.com/ → dapatkan API key
+// Lalu ganti string di bawah dengan API key Anda
+const IMGBB_KEY  = localStorage.getItem('imgbb_key') || '';
 // ─────────────────────────────────────────────────────────
 
 let currentPhoto    = null;
@@ -962,16 +983,21 @@ async function npRead(blobId) {
 // Tulis/update data ke jsonblob script
 async function npWrite(blobId, payload) {
   try {
+    const body = JSON.stringify(payload);
+    const sizeKB = Math.round(body.length / 1024);
+    if (sizeKB > 480) {
+      console.error('npWrite: payload terlalu besar', sizeKB, 'KB');
+      toast('⚠️ Data terlalu besar (' + sizeKB + 'KB). Pastikan foto diupload via imgbb, bukan base64!');
+      return false;
+    }
     const res = await fetch(`${NP_BASE}/${blobId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body,
     });
     if (!res.ok) {
-      console.error('npWrite failed', res.status, await res.text());
+      const errTxt = await res.text().catch(() => '');
+      console.error('npWrite failed', res.status, errTxt);
       return false;
     }
     return true;
@@ -979,6 +1005,23 @@ async function npWrite(blobId, payload) {
     console.error('npWrite exception', e);
     return false;
   }
+}
+
+// ─── IMGBB UPLOAD ─────────────────────────────────────────
+async function uploadToImgbb(base64Data) {
+  const key = localStorage.getItem('imgbb_key') || '';
+  if (!key) return null;
+  try {
+    const b64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+    const form = new FormData();
+    form.append('key', key);
+    form.append('image', b64);
+    const res = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body:form });
+    if (!res.ok) { console.error('imgbb upload failed', res.status); return null; }
+    const json = await res.json();
+    if (json.success && json.data?.url) return json.data.url;
+    return null;
+  } catch(e) { console.error('imgbb exception', e); return null; }
 }
 
 // Cek apakah Blob ID sudah diisi (bukan placeholder)
@@ -1196,9 +1239,23 @@ function compress(src, max, q, cb) {
     if (w > max || h > max) { if (w > h) { h = Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
     c.width=w; c.height=h;
     c.getContext('2d').drawImage(img,0,0,w,h);
-    cb(c.toDataURL('image/jpeg', q));
+    const result = c.toDataURL('image/jpeg', q);
+    if (cb) cb(result);
   };
   img.src = src;
+  // Also return a Promise for async/await usage
+  return new Promise(resolve => {
+    const img2 = new Image();
+    img2.onload = () => {
+      const c = document.createElement('canvas');
+      let w = img2.width, h = img2.height;
+      if (w > max || h > max) { if (w > h) { h = Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
+      c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img2,0,0,w,h);
+      resolve(c.toDataURL('image/jpeg', q));
+    };
+    img2.src = src;
+  });
 }
 
 // ─── FORM ─────────────────────────────────────────────────
@@ -1229,8 +1286,29 @@ async function submitCheckin() {
   if (!data[tanggal]) data[tanggal] = {};
   if (data[tanggal][nameId] && !confirm(`${member.name} sudah check-in jam ${data[tanggal][nameId].jam}. Timpa?`)) return;
 
-  // Foto disimpan sebagai base64 langsung (sudah dikompres kecil)
-  let fotoValue = currentPhoto || null;
+  // Upload foto ke imgbb (jika ada API key), atau simpan thumbnail base64 sangat kecil
+  let fotoValue = null;
+  const statusEl = document.getElementById('github-upload-status');
+  statusEl.style.display = 'block';
+
+  if (currentPhoto) {
+    const imgbbKey = localStorage.getItem('imgbb_key') || '';
+    if (imgbbKey) {
+      statusEl.innerHTML = '<div class="github-status loading">⏳ Mengupload foto ke imgbb…</div>';
+      const url = await uploadToImgbb(currentPhoto);
+      if (url) {
+        fotoValue = url;
+        statusEl.innerHTML = '<div class="github-status ok">✓ Foto berhasil diupload</div>';
+      } else {
+        statusEl.innerHTML = '<div class="github-status err">⚠️ Upload foto gagal — absensi tetap disimpan tanpa foto</div>';
+      }
+    } else {
+      // Tidak ada imgbb key — kompres sangat kecil sebagai thumbnail (max 120px, kualitas 0.4)
+      // agar tidak melebihi limit jsonblob
+      fotoValue = await new Promise(res => compress(currentPhoto, 120, 0.40, res));
+      statusEl.innerHTML = '<div class="github-status loading">⚠️ Foto disimpan lokal saja (kecil). Atur imgbb API key agar foto tampil di device lain.</div>';
+    }
+  }
 
   data[tanggal][nameId] = { jam, foto: fotoValue };
   _data = data;
@@ -1240,6 +1318,7 @@ async function submitCheckin() {
   document.getElementById('confirm-msg').textContent = `✓ ${member.name} — ${jam} · ${fmtShort(tanggal)}`;
   box.classList.add('show');
   setTimeout(() => box.classList.remove('show'), 4000);
+  setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
   toast(`✓ ${member.name} check-in berhasil!`);
   resetForm(); renderHadirList(); renderRekapMonth();
 
@@ -1432,7 +1511,26 @@ function adminLogin() {
     document.getElementById('admin-date').value = getDefaultDate() || todayStr();
     renderTeamList(); loadGithubConfigFields(); toast('✓ Login berhasil');
     renderHadirList();
+    // Load imgbb key
+    const savedKey = localStorage.getItem('imgbb_key') || '';
+    if (savedKey) {
+      document.getElementById('imgbb-key-input').value = savedKey;
+      document.getElementById('imgbb-status').textContent = '✓ API key tersimpan di browser ini';
+      document.getElementById('imgbb-status').style.color = 'var(--accent2)';
+    } else {
+      document.getElementById('imgbb-status').textContent = '⚠️ Belum ada API key — foto hanya tersimpan lokal (tidak sync antar device)';
+      document.getElementById('imgbb-status').style.color = 'var(--accent3)';
+    }
   } else toast('⚠️ Password salah!');
+}
+
+function saveImgbbKey() {
+  const key = document.getElementById('imgbb-key-input').value.trim();
+  if (!key) { toast('⚠️ Masukkan API key terlebih dahulu'); return; }
+  localStorage.setItem('imgbb_key', key);
+  document.getElementById('imgbb-status').textContent = '✓ API key berhasil disimpan!';
+  document.getElementById('imgbb-status').style.color = 'var(--accent2)';
+  toast('✓ imgbb API key disimpan');
 }
 
 function adminLogout() {
