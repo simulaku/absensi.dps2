@@ -988,11 +988,29 @@ async function uploadToImgbb(base64Data) {
     if (!r.ok) { console.error('imgbb status', r.status); return null; }
     const j = await r.json();
     if (!j.success) { console.error('imgbb fail', j); return null; }
-    // Prioritas: display_url (URL gambar langsung .jpg/.png) > url > thumb.url
-    // j.data.url  → bisa berupa halaman viewer imgbb, bukan gambar langsung
-    // j.data.display_url → selalu URL gambar langsung, bisa embed di <img>
-    const direct = j.data?.display_url || j.data?.image?.url || j.data?.url || null;
-    console.log('imgbb upload ok:', direct);
+    // Prioritas URL gambar langsung yang bisa di-embed di <img> dari semua device:
+    // j.data.image.url  → URL gambar asli (direct, embeddable, bukan halaman viewer)
+    // j.data.medium.url → versi medium (juga direct)
+    // j.data.thumb.url  → thumbnail (direct)
+    // j.data.display_url → BUKAN direct image, ini halaman viewer imgbb — JANGAN pakai
+    // j.data.url        → halaman viewer imgbb — JANGAN pakai sebagai src <img>
+    // Ambil semua kandidat URL gambar langsung (bukan halaman viewer)
+    const candidates = [
+      j.data?.image?.url,
+      j.data?.medium?.url,
+      j.data?.thumb?.url,
+    ].filter(u => u && typeof u === 'string' && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(u));
+
+    // Jika tidak ada yang berakhiran ekstensi gambar, coba semua field dan pilih yang bukan halaman viewer
+    const fallbacks = [
+      j.data?.image?.url,
+      j.data?.medium?.url,
+      j.data?.thumb?.url,
+      j.data?.display_url,
+    ].filter(u => u && typeof u === 'string' && !u.includes('ibb.co/') && u.startsWith('https://'));
+
+    const direct = candidates[0] || fallbacks[0] || null;
+    console.log('imgbb upload ok:', direct, '| image.url:', j.data?.image?.url, '| display_url:', j.data?.display_url);
     return direct;
   } catch(e) { console.error('imgbb exc', e); return null; }
 }
@@ -1062,17 +1080,28 @@ async function syncAll(silent = false) {
     // Baca data absensi dari Firebase RTDB
     const fetchedData = await fbRead(FB_PATH_DATA);
     if (fetchedData !== null && typeof fetchedData === 'object' && !Array.isArray(fetchedData)) {
-      // Sanitasi: hapus base64 yang tersimpan sebelumnya agar tidak merusak tampilan
+      // Sanitasi: hapus base64 dari cloud agar tidak merusak tampilan
       const sanitized = sanitizeData(fetchedData);
-      const cloudKeys = Object.keys(sanitized).length;
-      const localKeys = Object.keys(_data).length;
-      if (cloudKeys >= localKeys) {
-        _data = sanitized;
-        lsSave(LS_DATA, _data);
-        // Jika ada data kotor di cloud, bersihkan sekalian
-        if (JSON.stringify(sanitized) !== JSON.stringify(fetchedData)) {
-          fbWrite(FB_PATH_DATA, sanitized); // bersihkan cloud tanpa await
+      // Merge: ambil cloud sebagai base, lalu pertahankan foto URL valid dari lokal
+      const merged = JSON.parse(JSON.stringify(sanitized));
+      for (const [date, entries] of Object.entries(_data || {})) {
+        if (!entries || typeof entries !== 'object') continue;
+        if (!merged[date]) merged[date] = {};
+        for (const [id, rec] of Object.entries(entries)) {
+          if (!rec) continue;
+          const cloudRec = merged[date][id];
+          const localHasFoto = rec.foto && !rec.foto.startsWith('data:');
+          const cloudHasFoto = cloudRec && cloudRec.foto && !cloudRec.foto.startsWith('data:');
+          if (localHasFoto && !cloudHasFoto) {
+            merged[date][id] = { jam: rec.jam, foto: rec.foto };
+          }
         }
+      }
+      _data = merged;
+      lsSave(LS_DATA, _data);
+      if (JSON.stringify(sanitized) !== JSON.stringify(fetchedData) ||
+          JSON.stringify(merged) !== JSON.stringify(sanitized)) {
+        fbWrite(FB_PATH_DATA, merged);
       }
     } else if (fetchedData === null && Object.keys(_data).length > 0) {
       await fbWrite(FB_PATH_DATA, sanitizeData(_data));
