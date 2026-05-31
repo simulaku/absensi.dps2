@@ -895,8 +895,8 @@ const ADMIN_PASS  = "Harmoni123";
 // ─── KONFIGURASI CLOUD ────────────────────────────────────
 // npoint.io: buat script di https://www.npoint.io/
 // Tempel Endpoint ID di bawah (bagian setelah npoint.io/docs/)
-const NP_ID_DATA  = "636373886f29c392e843";   // ← endpoint data absensi
-const NP_ID_TEAM  = "2df4e7e082c7ae141865";   // ← endpoint data tim
+const NP_ID_DATA  = "636373886f29c392e843";
+const NP_ID_TEAM  = "2df4e7e082c7ae141865";
 const NP_BASE     = "https://api.npoint.io";
 
 // imgbb: API key sudah tertanam, tidak perlu konfigurasi
@@ -945,8 +945,9 @@ async function npRead(id) {
 async function npWrite(id, payload) {
   try {
     const body = JSON.stringify(payload);
+    // npoint.io: gunakan PUT untuk update endpoint yang sudah ada
     const r = await fetch(`${NP_BASE}/${id}`, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
       body,
     });
