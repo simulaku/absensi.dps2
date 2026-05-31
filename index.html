@@ -640,22 +640,17 @@ tr:last-child td { border-bottom:none; }
 <div class="setup-screen hidden" id="setup-screen">
   <div class="setup-logo">🗓️</div>
   <div class="setup-title">Absensi DPS 2</div>
-  <div class="setup-sub">App sudah terhubung ke cloud. Data tersimpan realtime dan bisa diakses dari device manapun.</div>
+  <div class="setup-sub">App terhubung ke Firebase Cloud. Data tersimpan realtime dan bisa diakses dari device manapun.</div>
   <div class="setup-card">
     <div class="setup-steps">
-      <div class="setup-step">1. Buat <b>GitHub repo</b> baru (bisa private)</div>
-      <div class="setup-step">2. Generate <b>Personal Access Token</b> di Settings → Developer Settings → PAT (scopes: <b>repo</b>)</div>
-      <div class="setup-step">3. Isi form di bawah, lalu <b>Sambungkan</b></div>
+      <div class="setup-step">1. Buka <b>console.firebase.google.com</b> → buat project baru</div>
+      <div class="setup-step">2. Pilih <b>Realtime Database</b> → Create database → mode <b>Test mode</b></div>
+      <div class="setup-step">3. Salin URL database → masukkan di <b>Admin → Koneksi Cloud</b></div>
     </div>
-    <div class="field-label">GitHub Token (PAT)</div>
-    <div class="field"><input type="password" id="setup-token" placeholder="ghp_xxxxxxxxxxxx"></div>
-    <div class="field-label">Username / Owner</div>
-    <div class="field"><input type="text" id="setup-owner" placeholder="username-github"></div>
-    <div class="field-label">Nama Repository</div>
-    <div class="field"><input type="text" id="setup-repo" placeholder="absensi-dps2"></div>
-    <div class="field-label">Branch</div>
-    <div class="field"><input type="text" id="setup-branch" placeholder="main" value="main"></div>
-    <button class="btn btn-primary" onclick="connectGithub()" style="margin-bottom:10px">🔗 Sambungkan ke GitHub</button>
+    <div class="field-label">URL Firebase Realtime Database</div>
+    <div class="field"><input type="url" id="setup-token" placeholder="https://nama-proyek-default-rtdb.asia-southeast1.firebasedatabase.app" style="font-size:12px"></div>
+    <button class="btn btn-primary" onclick="connectGithub()" style="margin-bottom:10px">🔗 Sambungkan ke Firebase</button>
+    <button class="btn btn-ghost" onclick="connectGithub()" style="height:40px;font-size:13px">Lewati — Gunakan Mode Lokal</button>
     <div id="setup-status" style="display:none"></div>
   </div>
 </div>
@@ -815,14 +810,27 @@ tr:last-child td { border-bottom:none; }
 
       <!-- CLOUD STATUS -->
       <div class="card">
-        <div class="card-title">☁️ Koneksi Cloud</div>
+        <div class="card-title">☁️ Koneksi Cloud — Firebase</div>
         <div class="github-config-info">
-          Data tersimpan di <b>npoint.io</b> — realtime, sync otomatis ke semua device.<br>
-          Foto diupload ke <b>imgbb.com</b> — tersimpan permanen di cloud.<br>
-          Tidak perlu konfigurasi tambahan.
+          Data tersimpan di <b>Firebase Realtime Database</b> — realtime, gratis selamanya, sync otomatis ke semua device.<br>
+          Foto diupload ke <b>imgbb.com</b> — tersimpan permanen di cloud.
+        </div>
+        <div class="field-label" style="margin-top:12px">URL Firebase Realtime Database</div>
+        <div class="field">
+          <input type="url" id="fb-url-input" placeholder="https://nama-proyek-default-rtdb.asia-southeast1.firebasedatabase.app" style="font-size:12px">
+        </div>
+        <div style="background:rgba(79,142,247,0.07);border:1px solid rgba(79,142,247,0.18);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--muted);line-height:1.7">
+          <b style="color:var(--accent)">Cara setup Firebase gratis (3 menit):</b><br>
+          1. Buka <b style="color:var(--text)">console.firebase.google.com</b><br>
+          2. Buat project baru → nama bebas<br>
+          3. Klik <b style="color:var(--text)">Realtime Database</b> → Create database<br>
+          4. Pilih lokasi <b style="color:var(--text)">asia-southeast1</b>, mode <b style="color:var(--text)">Test mode</b><br>
+          5. Salin URL database (contoh: <i>https://xxx-default-rtdb.asia-southeast1.firebasedatabase.app</i>)<br>
+          6. Tempel di field atas → klik Simpan
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="testKoneksi()" style="margin-bottom:8px">🔗 Test Koneksi</button>
+          <button class="btn btn-primary btn-sm" onclick="saveFbUrl()">💾 Simpan & Hubungkan</button>
+          <button class="btn btn-ghost btn-sm" onclick="testKoneksi()">🔗 Test Koneksi</button>
           <button class="btn btn-secondary btn-sm" onclick="syncAll()">⟳ Sync Manual</button>
         </div>
         <div id="gh-test-result" style="margin-top:8px;display:none"></div>
@@ -885,23 +893,53 @@ tr:last-child td { border-bottom:none; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-//  ABSENSI DPS 2 — npoint.io + imgbb.com
+//  ABSENSI DPS 2 — Firebase Realtime Database + imgbb.com
 //  Foto  → imgbb.com (URL permanen, tampil di semua device)
-//  Data  → npoint.io (JSON cloud, sync realtime)
+//  Data  → Firebase RTDB REST API (realtime, gratis, multi-device)
 // ═══════════════════════════════════════════════════════════
 
 const ADMIN_PASS  = "Harmoni123";
 
-// ─── KONFIGURASI CLOUD ────────────────────────────────────
-// npoint.io: buat script di https://www.npoint.io/
-// Tempel Endpoint ID di bawah (bagian setelah npoint.io/docs/)
-const NP_ID_DATA  = "636373886f29c392e843";
-const NP_ID_TEAM  = "2df4e7e082c7ae141865";
-const NP_BASE     = "https://api.npoint.io";
+// ─── FIREBASE REALTIME DATABASE CONFIG ───────────────────
+// Isi dengan URL Firebase Realtime Database Anda
+// Format: https://NAMA-PROYEK-default-rtdb.REGION.firebasedatabase.app
+// Bisa diubah langsung di panel Admin → Koneksi Cloud
+let FB_DB_URL   = localStorage.getItem('abs_fb_url') || "";
+const FB_PATH_DATA = "/absensi_data";
+const FB_PATH_TEAM = "/absensi_team";
+
+// localStorage keys — cache lokal agar data tetap ada saat refresh
+const LS_DATA     = "abs_data_v2";
+const LS_TEAM     = "abs_team_v2";
 
 // imgbb: API key sudah tertanam, tidak perlu konfigurasi
 const IMGBB_KEY   = "74a01349881670cba9d336875307a00d";
 // ─────────────────────────────────────────────────────────
+
+// ─── FIREBASE RTDB HELPERS ───────────────────────────────
+async function fbRead(path) {
+  try {
+    const r = await fetch(`${FB_DB_URL}${path}.json`);
+    if (!r.ok) { console.error('fbRead', r.status); return null; }
+    const txt = await r.text();
+    if (!txt || txt === 'null') return null;
+    return JSON.parse(txt);
+  } catch(e) { console.error('fbRead exc', e); return null; }
+}
+
+async function fbWrite(path, payload) {
+  try {
+    const r = await fetch(`${FB_DB_URL}${path}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) { console.error('fbWrite', r.status, await r.text().catch(()=>'')); return false; }
+    return true;
+  } catch(e) { console.error('fbWrite exc', e); return false; }
+}
+
+function fsReady() { return !!FB_DB_URL && FB_DB_URL.startsWith('https://'); }
 
 let currentPhoto  = null;
 let rekapMonth    = new Date(); rekapMonth.setDate(1);
@@ -930,35 +968,13 @@ const DEFAULT_TEAM = [
   {id:'9684',name:'NI PUTU SUGIANTARI'},
 ];
 
-// ─── NPOINT HELPERS ───────────────────────────────────────
-async function npRead(id) {
-  try {
-    const r = await fetch(`${NP_BASE}/${id}`, { headers:{'Accept':'application/json'} });
-    if (r.status === 404) return null;
-    if (!r.ok) { console.error('npRead', r.status); return null; }
-    const txt = await r.text();
-    if (!txt || txt.trim() === '') return null;
-    return JSON.parse(txt);
-  } catch(e) { console.error('npRead exc', e); return null; }
+// ─── LOCALSTORAGE (cache lokal) ───────────────────────────
+function lsSave(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
 }
-
-async function npWrite(id, payload) {
-  try {
-    const body = JSON.stringify(payload);
-    // npoint.io: gunakan PUT untuk update endpoint yang sudah ada
-    const r = await fetch(`${NP_BASE}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
-      body,
-    });
-    if (!r.ok) { console.error('npWrite', r.status, await r.text().catch(()=>'')); return false; }
-    return true;
-  } catch(e) { console.error('npWrite exc', e); return false; }
-}
-
-function npReady() {
-  return NP_ID_DATA && !NP_ID_DATA.startsWith('GANTI') &&
-         NP_ID_TEAM && !NP_ID_TEAM.startsWith('GANTI');
+function lsLoad(key) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+  catch(e) { return null; }
 }
 
 // ─── IMGBB UPLOAD ─────────────────────────────────────────
@@ -1007,28 +1023,44 @@ async function syncAll(silent = false) {
   _syncing = true;
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
-  if (!npReady()) {
-    setSyncStatus('error', '⚠️ npoint ID belum diisi di kode');
-    _syncing = false; return;
+  // Selalu load dari localStorage dulu agar data tidak hilang saat offline
+  const cachedData = lsLoad(LS_DATA);
+  const cachedTeam = lsLoad(LS_TEAM);
+  if (cachedData) _data = cachedData;
+  if (cachedTeam && cachedTeam.length) _team = cachedTeam;
+
+  if (!fsReady()) {
+    const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+    setSyncStatus('offline', `Cloud belum dikonfigurasi — mode lokal`);
+    refreshUI(); _syncing = false; return;
   }
 
   try {
-    // Baca data absensi
-    const fetchedData = await npRead(NP_ID_DATA);
-    if (fetchedData === null) {
-      _data = {};
-      await npWrite(NP_ID_DATA, {});
-    } else {
-      _data = (typeof fetchedData === 'object' && !Array.isArray(fetchedData)) ? fetchedData : {};
+    // Baca data absensi dari Firebase RTDB
+    const fetchedData = await fbRead(FB_PATH_DATA);
+    if (fetchedData !== null && typeof fetchedData === 'object' && !Array.isArray(fetchedData)) {
+      const cloudKeys = Object.keys(fetchedData).length;
+      const localKeys = Object.keys(_data).length;
+      if (cloudKeys >= localKeys) {
+        _data = fetchedData;
+        lsSave(LS_DATA, _data);
+      }
+    } else if (fetchedData === null && Object.keys(_data).length > 0) {
+      await fbWrite(FB_PATH_DATA, _data);
+    } else if (fetchedData === null) {
+      await fbWrite(FB_PATH_DATA, {});
     }
 
-    // Baca data tim
-    const fetchedTeam = await npRead(NP_ID_TEAM);
-    if (!fetchedTeam || (Array.isArray(fetchedTeam) && fetchedTeam.length === 0)) {
-      _team = DEFAULT_TEAM;
-      await npWrite(NP_ID_TEAM, DEFAULT_TEAM);
+    // Baca data tim dari Firebase RTDB
+    const fetchedTeam = await fbRead(FB_PATH_TEAM);
+    if (fetchedTeam && Array.isArray(fetchedTeam) && fetchedTeam.length > 0) {
+      _team = fetchedTeam;
+      lsSave(LS_TEAM, _team);
     } else {
-      _team = Array.isArray(fetchedTeam) && fetchedTeam.length ? fetchedTeam : DEFAULT_TEAM;
+      const teamToSave = (_team && _team.length) ? _team : DEFAULT_TEAM;
+      _team = teamToSave;
+      await fbWrite(FB_PATH_TEAM, teamToSave);
+      lsSave(LS_TEAM, teamToSave);
     }
 
     _lastSync = Date.now();
@@ -1037,30 +1069,41 @@ async function syncAll(silent = false) {
     refreshUI();
   } catch(e) {
     console.error('syncAll', e);
-    setSyncStatus('error', 'Gagal sync: ' + e.message);
+    const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+    setSyncStatus('error', `Offline · data lokal · ${now}`);
+    refreshUI();
   }
   _syncing = false;
 }
 
 async function saveData() {
-  if (!npReady()) { toast('⚠️ npoint ID belum dikonfigurasi'); return; }
-  setSyncStatus('syncing', 'Menyimpan…');
-  const ok = await npWrite(NP_ID_DATA, _data);
+  lsSave(LS_DATA, _data);
+  if (!fsReady()) {
+    const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+    setSyncStatus('synced', `Tersimpan lokal · ${now}`);
+    return;
+  }
+  setSyncStatus('syncing', 'Menyimpan ke cloud…');
+  const ok = await fbWrite(FB_PATH_DATA, _data);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
-  else { setSyncStatus('error', 'Gagal simpan!'); toast('⚠️ Gagal simpan ke cloud! Coba sync ulang.'); }
+  else {
+    setSyncStatus('error', `Gagal cloud · data aman di lokal · ${now}`);
+    toast('⚠️ Cloud gagal — data aman, akan retry saat sync berikutnya');
+  }
 }
 
 async function saveTeam() {
-  if (!npReady()) return;
+  lsSave(LS_TEAM, _team);
+  if (!fsReady()) return;
   setSyncStatus('syncing', 'Menyimpan tim…');
-  const ok = await npWrite(NP_ID_TEAM, _team);
+  const ok = await fbWrite(FB_PATH_TEAM, _team);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tim tersimpan · ${now}`);
-  else setSyncStatus('error', 'Gagal simpan tim');
+  else setSyncStatus('error', 'Gagal simpan tim ke cloud');
 }
 
-// Auto-sync setiap 15 detik saat tab aktif (agar semua device update)
+// Auto-sync setiap 15 detik — pull data terbaru dari cloud ke semua device
 setInterval(() => {
   if (document.visibilityState === 'visible' && !_syncing) syncAll(true);
 }, 15000);
@@ -1078,6 +1121,11 @@ const todayStr      = () => {
 
 // ─── SETUP / BOOT ─────────────────────────────────────────
 async function connectGithub() {
+  const urlInput = document.getElementById('setup-token');
+  if (urlInput && urlInput.value.trim().startsWith('https://')) {
+    FB_DB_URL = urlInput.value.trim().replace(/\/$/, '');
+    localStorage.setItem('abs_fb_url', FB_DB_URL);
+  }
   document.getElementById('setup-screen').classList.add('hidden');
   showLoadingOverlay('Menghubungkan ke cloud…');
   await syncAll();
@@ -1118,18 +1166,30 @@ function hideLoadingOverlay() {
 function saveJBConfig() {}
 function saveGithubConfig() { syncAll(); }
 
-function loadGithubConfigFields() {}
+function loadGithubConfigFields() {
+  const el = document.getElementById('fb-url-input');
+  if (el) el.value = FB_DB_URL || '';
+}
+
+function saveFbUrl() {
+  const val = (document.getElementById('fb-url-input').value || '').trim().replace(/\/$/, '');
+  if (!val || !val.startsWith('https://')) { toast('⚠️ Masukkan URL Firebase yang valid'); return; }
+  FB_DB_URL = val;
+  localStorage.setItem('abs_fb_url', val);
+  toast('✓ URL disimpan! Menghubungkan ke cloud…');
+  syncAll();
+}
 
 async function testKoneksi() {
   const el = document.getElementById('gh-test-result');
   el.style.display = 'block';
-  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi…</div>';
+  el.innerHTML = '<div class="github-status loading">⏳ Mengecek koneksi Firebase…</div>';
   try {
-    const r = await fetch(`${NP_BASE}/${NP_ID_DATA}`, { headers:{'Accept':'application/json'} });
+    const r = await fetch(`${FB_DB_URL}${FB_PATH_DATA}.json`);
     if (r.ok) {
-      el.innerHTML = '<div class="github-status ok">✓ Koneksi npoint.io OK! Data sync berjalan.</div>';
+      el.innerHTML = '<div class="github-status ok">✓ Firebase Realtime Database OK! Data sync berjalan di semua device.</div>';
     } else {
-      el.innerHTML = `<div class="github-status err">✕ Error ${r.status} — cek npoint ID di kode</div>`;
+      el.innerHTML = `<div class="github-status err">✕ Error ${r.status} — database mungkin belum aktif</div>`;
     }
   } catch(e) {
     el.innerHTML = `<div class="github-status err">✕ Gagal: ${e.message}</div>`;
