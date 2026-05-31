@@ -631,7 +631,7 @@ tr:last-child td { border-bottom:none; }
 <body>
 
 <!-- LOADING OVERLAY -->
-<div class="loading-overlay" id="loading-overlay">
+<div class="loading-overlay hidden" id="loading-overlay">
   <div class="spinner"></div>
   <div class="loading-txt" id="loading-txt">Memuat data…</div>
 </div>
@@ -905,7 +905,10 @@ const ADMIN_PASS  = "Harmoni123";
 // Isi dengan URL Firebase Realtime Database Anda
 // Format: https://NAMA-PROYEK-default-rtdb.REGION.firebasedatabase.app
 // Bisa diubah langsung di panel Admin → Koneksi Cloud
-let FB_DB_URL   = "https://absensi-dps2-default-rtdb.asia-southeast1.firebasedatabase.app";
+let FB_DB_URL = (function() {
+  try { return localStorage.getItem('abs_fb_url') || "https://absensi-dps2-default-rtdb.asia-southeast1.firebasedatabase.app"; }
+  catch(e) { return "https://absensi-dps2-default-rtdb.asia-southeast1.firebasedatabase.app"; }
+})();
 const FB_PATH_DATA = "/absensi_data";
 const FB_PATH_TEAM = "/absensi_team";
 
@@ -918,26 +921,34 @@ const FB_PATH_FOTO = "/absensi_foto";
 // ─────────────────────────────────────────────────────────
 
 // ─── FIREBASE RTDB HELPERS ───────────────────────────────
+// fetch dengan timeout agar tidak hang selamanya
+function fetchWithTimeout(url, opts = {}, ms = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal })
+    .finally(() => clearTimeout(timer));
+}
+
 async function fbRead(path) {
   try {
-    const r = await fetch(`${FB_DB_URL}${path}.json`);
+    const r = await fetchWithTimeout(`${FB_DB_URL}${path}.json`);
     if (!r.ok) { console.error('fbRead', r.status); return null; }
     const txt = await r.text();
     if (!txt || txt === 'null') return null;
     return JSON.parse(txt);
-  } catch(e) { console.error('fbRead exc', e); return null; }
+  } catch(e) { console.error('fbRead exc', e.name, e.message); return null; }
 }
 
 async function fbWrite(path, payload) {
   try {
-    const r = await fetch(`${FB_DB_URL}${path}.json`, {
+    const r = await fetchWithTimeout(`${FB_DB_URL}${path}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     if (!r.ok) { console.error('fbWrite', r.status, await r.text().catch(()=>'')); return false; }
     return true;
-  } catch(e) { console.error('fbWrite exc', e); return false; }
+  } catch(e) { console.error('fbWrite exc', e.name, e.message); return false; }
 }
 
 function fsReady() { return !!FB_DB_URL && FB_DB_URL.startsWith('https://'); }
@@ -946,6 +957,7 @@ let currentPhoto  = null;
 let rekapMonth    = new Date(); rekapMonth.setDate(1);
 let activeTab     = 'checkin';
 let isAdmin       = false;
+let _booted       = false;
 
 let _data         = {};
 let _team         = [];
@@ -1098,32 +1110,33 @@ async function syncAll(silent = false) {
   if (!silent) setSyncStatus('syncing', 'Menyinkronkan…');
 
   // Selalu load dari localStorage dulu agar data tidak hilang saat offline
-  const cachedData = lsLoad(LS_DATA);
-  const cachedTeam = lsLoad(LS_TEAM);
-  if (cachedData) _data = cachedData;
-  if (cachedTeam && cachedTeam.length) _team = cachedTeam;
+  try {
+    const cachedData = lsLoad(LS_DATA);
+    const cachedTeam = lsLoad(LS_TEAM);
+    if (cachedData) _data = cachedData;
+    if (cachedTeam && cachedTeam.length) _team = cachedTeam;
+  } catch(e) {}
 
   if (!fsReady()) {
-    const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
-    setSyncStatus('offline', `Cloud belum dikonfigurasi — mode lokal`);
-    refreshUI(); _syncing = false; return;
+    setSyncStatus('offline', `Mode lokal — cloud belum dikonfigurasi`);
+    refreshUI();
+    _syncing = false;
+    return;
   }
 
   try {
-    // Baca data absensi dari Firebase RTDB (hanya jam + hasFoto, tanpa base64)
+    // Baca data absensi dari Firebase RTDB
     const fetchedData = await fbRead(FB_PATH_DATA);
-    if (fetchedData !== null && typeof fetchedData === 'object' && !Array.isArray(fetchedData)) {
+    if (fetchedData && typeof fetchedData === 'object' && !Array.isArray(fetchedData)) {
       const sanitized = sanitizeData(fetchedData);
       _data = sanitized;
       lsSave(LS_DATA, _data);
-      // Bersihkan cloud jika ada data lama yang kotor (ada field foto lama)
       if (JSON.stringify(sanitized) !== JSON.stringify(fetchedData)) {
-        fbWrite(FB_PATH_DATA, sanitized);
+        fbWrite(FB_PATH_DATA, sanitized); // background, tidak await
       }
-    } else if (fetchedData === null && Object.keys(_data).length > 0) {
-      await fbWrite(FB_PATH_DATA, sanitizeData(_data));
-    } else if (fetchedData === null) {
-      await fbWrite(FB_PATH_DATA, {});
+    } else if (!fetchedData) {
+      const toUpload = Object.keys(_data).length > 0 ? sanitizeData(_data) : {};
+      fbWrite(FB_PATH_DATA, toUpload); // background
     }
 
     // Baca data tim dari Firebase RTDB
@@ -1131,24 +1144,24 @@ async function syncAll(silent = false) {
     if (fetchedTeam && Array.isArray(fetchedTeam) && fetchedTeam.length > 0) {
       _team = fetchedTeam;
       lsSave(LS_TEAM, _team);
-    } else {
+    } else if (!fetchedTeam || !fetchedTeam.length) {
       const teamToSave = (_team && _team.length) ? _team : DEFAULT_TEAM;
       _team = teamToSave;
-      await fbWrite(FB_PATH_TEAM, teamToSave);
-      lsSave(LS_TEAM, teamToSave);
+      lsSave(LS_TEAM, _team);
+      fbWrite(FB_PATH_TEAM, teamToSave); // background
     }
 
     _lastSync = Date.now();
     const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
     setSyncStatus('synced', `Tersinkron · ${now}`);
-    refreshUI();
   } catch(e) {
-    console.error('syncAll', e);
+    console.error('syncAll error:', e);
     const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
     setSyncStatus('error', `Offline · data lokal · ${now}`);
+  } finally {
+    _syncing = false;
     refreshUI();
   }
-  _syncing = false;
 }
 
 async function saveData() {
@@ -1211,15 +1224,25 @@ async function connectGithub() {
   }
   document.getElementById('setup-screen').classList.add('hidden');
   showLoadingOverlay('Menghubungkan ke cloud…');
-  await syncAll();
+  try {
+    await Promise.race([syncAll(), new Promise(r => setTimeout(r, 9000))]);
+  } catch(e) {}
   hideLoadingOverlay();
-  init();
+  if (!_booted) { _booted = true; init(); }
 }
 
 async function boot() {
-  showLoadingOverlay('Menghubungkan ke cloud…');
-  await syncAll();
+  showLoadingOverlay('Memuat data…');
+  try {
+    await Promise.race([
+      syncAll(),
+      new Promise(resolve => setTimeout(resolve, 9000))
+    ]);
+  } catch(e) {
+    console.error('boot error:', e);
+  }
   hideLoadingOverlay();
+  _booted = true;
   init();
 }
 
