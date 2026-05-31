@@ -985,9 +985,15 @@ async function uploadToImgbb(base64Data) {
     form.append('key', IMGBB_KEY);
     form.append('image', b64);
     const r = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body:form });
-    if (!r.ok) { console.error('imgbb', r.status); return null; }
+    if (!r.ok) { console.error('imgbb status', r.status); return null; }
     const j = await r.json();
-    return (j.success && j.data?.url) ? j.data.url : null;
+    if (!j.success) { console.error('imgbb fail', j); return null; }
+    // Prioritas: display_url (URL gambar langsung .jpg/.png) > url > thumb.url
+    // j.data.url  → bisa berupa halaman viewer imgbb, bukan gambar langsung
+    // j.data.display_url → selalu URL gambar langsung, bisa embed di <img>
+    const direct = j.data?.display_url || j.data?.image?.url || j.data?.url || null;
+    console.log('imgbb upload ok:', direct);
+    return direct;
   } catch(e) { console.error('imgbb exc', e); return null; }
 }
 
@@ -1008,6 +1014,23 @@ function compress(src, max, q) {
     };
     img.src = src;
   });
+}
+
+// Hapus semua foto base64 dari data (base64 tidak bisa dilihat device lain)
+function sanitizeData(data) {
+  const clean = {};
+  for (const [date, entries] of Object.entries(data || {})) {
+    if (!entries || typeof entries !== 'object') continue;
+    clean[date] = {};
+    for (const [id, rec] of Object.entries(entries)) {
+      if (!rec) continue;
+      clean[date][id] = {
+        jam: rec.jam,
+        foto: (rec.foto && !rec.foto.startsWith('data:')) ? rec.foto : null
+      };
+    }
+  }
+  return clean;
 }
 
 // ─── SYNC ENGINE ──────────────────────────────────────────
@@ -1039,14 +1062,20 @@ async function syncAll(silent = false) {
     // Baca data absensi dari Firebase RTDB
     const fetchedData = await fbRead(FB_PATH_DATA);
     if (fetchedData !== null && typeof fetchedData === 'object' && !Array.isArray(fetchedData)) {
-      const cloudKeys = Object.keys(fetchedData).length;
+      // Sanitasi: hapus base64 yang tersimpan sebelumnya agar tidak merusak tampilan
+      const sanitized = sanitizeData(fetchedData);
+      const cloudKeys = Object.keys(sanitized).length;
       const localKeys = Object.keys(_data).length;
       if (cloudKeys >= localKeys) {
-        _data = fetchedData;
+        _data = sanitized;
         lsSave(LS_DATA, _data);
+        // Jika ada data kotor di cloud, bersihkan sekalian
+        if (JSON.stringify(sanitized) !== JSON.stringify(fetchedData)) {
+          fbWrite(FB_PATH_DATA, sanitized); // bersihkan cloud tanpa await
+        }
       }
     } else if (fetchedData === null && Object.keys(_data).length > 0) {
-      await fbWrite(FB_PATH_DATA, _data);
+      await fbWrite(FB_PATH_DATA, sanitizeData(_data));
     } else if (fetchedData === null) {
       await fbWrite(FB_PATH_DATA, {});
     }
@@ -1084,7 +1113,20 @@ async function saveData() {
     return;
   }
   setSyncStatus('syncing', 'Menyimpan ke cloud…');
-  const ok = await fbWrite(FB_PATH_DATA, _data);
+  // Sanitasi: hapus entry yang fotonya base64 (tidak bisa dilihat device lain)
+  const clean = {};
+  for (const [date, entries] of Object.entries(_data)) {
+    clean[date] = {};
+    for (const [id, rec] of Object.entries(entries)) {
+      if (rec.foto && rec.foto.startsWith('data:')) {
+        // Simpan entri tanpa foto daripada kirim base64 ke cloud
+        clean[date][id] = { jam: rec.jam, foto: null };
+      } else {
+        clean[date][id] = rec;
+      }
+    }
+  }
+  const ok = await fbWrite(FB_PATH_DATA, clean);
   const now = new Date().toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
   if (ok) setSyncStatus('synced', `Tersimpan · ${now}`);
   else {
@@ -1294,7 +1336,7 @@ async function submitCheckin() {
     return; // STOP — jangan simpan base64 lokal
   }
 
-  statusEl.innerHTML = '<div class="github-status ok">✓ Foto berhasil diupload ke cloud</div>';
+  statusEl.innerHTML = `<div class="github-status ok">✓ Foto diupload ke cloud</div>`;
 
   data[tanggal][nameId] = { jam, foto: fotoValue };
   _data = data;
