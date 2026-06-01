@@ -598,10 +598,19 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   .absensi-wrap { padding: 16px 12px 80px; }
   .table-wrap { display: none; }
   .record-cards { display: block; }
-  /* Tabel absensi: di mobile pakai cards agar foto bisa tampil */
-  #tabelTableWrap { display: none !important; }
-  #tabelCards { display: block !important; }
+  /* Tabel absensi: tetap pakai tabel di mobile dengan sticky freeze */
+  #tabelTableWrap { display: block !important; overflow-x: auto; max-height: calc(100vh - 220px); }
+  #tabelCards { display: none !important; }
   #tabelMobileHint { display: none !important; }
+  /* Foto lebih kecil di mobile agar muat di tabel */
+  #tabelTableWrap .thumb-img { width: 28px; height: 28px; border-radius: 5px; }
+  /* Kolom foto tetap tampil */
+  #tabelTableWrap th:nth-child(5),
+  #tabelTableWrap td:nth-child(5) { display: table-cell; }
+  /* Padding lebih rapat di mobile */
+  #tabelTableWrap td, #tabelTableWrap th { padding: 8px 8px; font-size: 0.78rem; }
+  /* Kolom nama tidak terlalu lebar */
+  #tabelTableWrap td:nth-child(2) { max-width: 100px; }
   .records-filters { gap: 7px; }
   .records-filters input, .records-filters select { min-width: 0; }
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
