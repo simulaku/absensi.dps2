@@ -720,6 +720,7 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
             <th>Status</th>
             <th>Jam Check-In</th>
             <th>Foto</th>
+            <th class="admin-col" style="display:none;">Aksi</th>
           </tr>
         </thead>
         <tbody id="tabelBody"></tbody>
@@ -1105,6 +1106,7 @@ function renderTabel() {
     const statusLabel = rec ? rec.status : 'Belum Absen';
     const statusClass = rec ? (rec.status === 'Hadir' ? 'status-hadir' : 'status-terlambat') : 'status-belum';
     const statusIcon  = rec ? (rec.status === 'Hadir' ? '✅' : '⏰') : '⭕';
+    const deleteBtn   = (rec && isLoggedIn) ? `<td><button class="btn btn-danger btn-xs" onclick="deleteRecord('${rec.firestoreId}')">🗑</button></td>` : (isLoggedIn ? `<td></td>` : '');
     return `<tr>
       <td style="color:var(--muted);">${i+1}</td>
       <td><div style="display:flex;align-items:center;gap:8px;">
@@ -1114,6 +1116,7 @@ function renderTabel() {
       <td><span class="${statusClass}">${statusIcon} ${statusLabel}</span></td>
       <td style="font-variant-numeric:tabular-nums;color:${rec?'var(--text)':'var(--muted)'};">${rec ? rec.jam : '—'}</td>
       <td>${rec?.foto ? `<img src="${rec.foto}" class="thumb-img" onclick="openPhoto('${esc(name)}','${rec.foto}')" title="Lihat foto">` : '<span style="color:var(--muted);">—</span>'}</td>
+      ${deleteBtn}
     </tr>`;
   }).join('');
 
@@ -1235,6 +1238,8 @@ window.doLogin = function() {
     isLoggedIn = true;
     document.getElementById('adminPass').value = '';
     showAdminDash();
+    toggleAdminCol(true);
+    renderTabel();
     toast('Selamat datang, Admin! 👋', 'success');
   } else { toast('Password salah', 'error'); document.getElementById('adminPass').select(); }
 }
@@ -1243,7 +1248,13 @@ window.doLogout = function() {
   isLoggedIn = false;
   document.getElementById('adminDash').style.display = 'none';
   document.getElementById('adminLogin').style.display = 'block';
+  toggleAdminCol(false);
+  renderTabel();
   toast('Berhasil logout', 'info');
+}
+
+function toggleAdminCol(show) {
+  document.querySelectorAll('.admin-col').forEach(el => el.style.display = show ? '' : 'none');
 }
 
 function showAdminDash() {
