@@ -599,24 +599,48 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   .absensi-wrap { padding: 16px 12px 80px; }
   .table-wrap { display: none; }
   .record-cards { display: block; }
-  /* Tabel absensi: tetap pakai tabel di mobile dengan sticky freeze */
-  /* Buang scroll internal, biarkan halaman yang scroll secara alami */
-  #tabelTableWrap { display: block !important; overflow-x: auto; overflow-y: visible; max-height: none; }
+  /* ── TABEL MOBILE: satu scroll container, sticky freeze kolom Nama ── */
+  /* Halaman tabel mengisi penuh viewport */
+  #page-tabel {
+    height: calc(100dvh - var(--nav-h));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* tabel-wrap mengisi sisa ruang, flex column, tidak scroll sendiri */
+  .tabel-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 12px 10px 0;
+    max-width: 100%;
+  }
+  /* Header & summary tidak ikut scroll */
+  .tabel-header { flex-shrink: 0; margin-bottom: 10px; }
+  .tabel-summary { flex-shrink: 0; margin-bottom: 10px; }
+  /* SATU scroll container: vertikal + horizontal di sini saja */
+  #tabelTableWrap {
+    display: block !important;
+    flex: 1;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    max-height: none !important;
+    /* ruang bawah untuk bottom nav */
+    padding-bottom: calc(var(--bottom-h) + 8px);
+    /* smooth scroll di iOS */
+    -webkit-overflow-scrolling: touch;
+  }
   #tabelCards { display: none !important; }
   #tabelMobileHint { display: none !important; }
-  /* Foto lebih kecil di mobile agar muat di tabel */
+  #tabelEmpty { flex-shrink: 0; }
+  /* Foto lebih kecil agar muat di tabel */
   #tabelTableWrap .thumb-img { width: 28px; height: 28px; border-radius: 5px; }
   /* Kolom foto tetap tampil */
   #tabelTableWrap th:nth-child(5),
   #tabelTableWrap td:nth-child(5) { display: table-cell; }
-  /* Padding lebih rapat di mobile */
-  #tabelTableWrap td, #tabelTableWrap th { padding: 8px 8px; font-size: 0.78rem; }
-  /* Kolom nama tidak terlalu lebar */
-  #tabelTableWrap td:nth-child(2) { max-width: 100px; }
-  /* Sticky thead offset: sesuaikan dengan tinggi nav bar di mobile */
-  #tabelTableWrap thead th { top: 0; }
-  /* tabel-wrap isi penuh layar agar scroll dari body */
-  .tabel-wrap { padding-bottom: 80px; }
+  /* Padding rapat di mobile */
+  #tabelTableWrap td, #tabelTableWrap th { padding: 7px 8px; font-size: 0.78rem; }
   .records-filters { gap: 7px; }
   .records-filters input, .records-filters select { min-width: 0; }
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
