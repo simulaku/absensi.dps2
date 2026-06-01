@@ -598,8 +598,12 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   .absensi-wrap { padding: 16px 12px 80px; }
   .table-wrap { display: none; }
   .record-cards { display: block; }
-  #tabelTableWrap { display: none !important; }
-  #tabelCards { display: block !important; }
+  /* Tabel absensi tetap tampil di mobile, bukan cards */
+  #tabelTableWrap { display: block !important; overflow-x: auto; max-height: calc(100vh - 220px); }
+  #tabelCards { display: none !important; }
+  /* Kolom foto sembunyikan di mobile agar tidak terlalu penuh */
+  #tabelTableWrap th:nth-child(5),
+  #tabelTableWrap td:nth-child(5) { display: none; }
   .records-filters { gap: 7px; }
   .records-filters input, .records-filters select { min-width: 0; }
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -672,7 +676,7 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
       <div class="form-group">
         <label>📷 Foto Selfie</label>
         <div class="photo-upload" id="photoZone">
-          <input type="file" id="inputFoto" accept="image/*" capture="user" onchange="previewPhoto(event)">
+          <input type="file" id="inputFoto" accept="image/*" onchange="previewPhoto(event)">
           <div class="pu-icon">📸</div>
           <div class="pu-text"><strong>Tap untuk ambil foto</strong></div>
           <div class="pu-text" style="font-size:0.75rem;margin-top:3px;">Kamera / Galeri — akan di-compress otomatis</div>
