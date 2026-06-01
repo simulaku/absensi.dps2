@@ -29,7 +29,8 @@
   --bottom-h: 60px;
 }
 
-html, body { height: 100%; }
+html { height: 100%; }
+body { min-height: 100%; }
 
 body {
   font-family: var(--font);
@@ -599,7 +600,8 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   .table-wrap { display: none; }
   .record-cards { display: block; }
   /* Tabel absensi: tetap pakai tabel di mobile dengan sticky freeze */
-  #tabelTableWrap { display: block !important; overflow-x: auto; max-height: calc(100vh - 220px); }
+  /* Buang scroll internal, biarkan halaman yang scroll secara alami */
+  #tabelTableWrap { display: block !important; overflow-x: auto; overflow-y: visible; max-height: none; }
   #tabelCards { display: none !important; }
   #tabelMobileHint { display: none !important; }
   /* Foto lebih kecil di mobile agar muat di tabel */
@@ -611,6 +613,10 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   #tabelTableWrap td, #tabelTableWrap th { padding: 8px 8px; font-size: 0.78rem; }
   /* Kolom nama tidak terlalu lebar */
   #tabelTableWrap td:nth-child(2) { max-width: 100px; }
+  /* Sticky thead offset: sesuaikan dengan tinggi nav bar di mobile */
+  #tabelTableWrap thead th { top: 0; }
+  /* tabel-wrap isi penuh layar agar scroll dari body */
+  .tabel-wrap { padding-bottom: 80px; }
   .records-filters { gap: 7px; }
   .records-filters input, .records-filters select { min-width: 0; }
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
