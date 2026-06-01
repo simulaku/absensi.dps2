@@ -601,9 +601,11 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   /* Tabel absensi tetap tampil di mobile, bukan cards */
   #tabelTableWrap { display: block !important; overflow-x: auto; max-height: calc(100vh - 220px); }
   #tabelCards { display: none !important; }
-  /* Kolom foto sembunyikan di mobile agar tidak terlalu penuh */
+  /* Mobile: sembunyikan kolom foto di tabel, tapi tampilkan di card via openMemberDetail */
   #tabelTableWrap th:nth-child(5),
   #tabelTableWrap td:nth-child(5) { display: none; }
+  /* Tampilkan card di bawah tabel di mobile jika ada foto */
+  #tabelFotoCards { display: block; }
   .records-filters { gap: 7px; }
   .records-filters input, .records-filters select { min-width: 0; }
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -726,6 +728,7 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
         <tbody id="tabelBody"></tbody>
       </table>
     </div>
+    <div id="tabelMobileHint" style="display:none;text-align:center;padding:8px 0 4px;font-size:0.72rem;color:var(--muted);">📷 Tap nama untuk lihat foto & detail</div>
 
     <div id="tabelCards" class="record-cards"></div>
 
@@ -897,6 +900,27 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   </div>
 </div>
 
+<!-- Member Detail Modal -->
+<div class="modal-overlay" id="memberModal">
+  <div class="modal-box" style="max-width:380px;">
+    <button class="modal-close" onclick="closeMemberModal()">×</button>
+    <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Detail Anggota</div>
+    <div style="display:flex;align-items:center;gap:12px;margin:12px 0 16px;">
+      <div id="memberModalAvatar" class="member-avatar" style="width:46px;height:46px;font-size:1.1rem;flex-shrink:0;"></div>
+      <div>
+        <div id="memberModalName" style="font-size:1.1rem;font-weight:700;"></div>
+        <div id="memberModalDate" style="font-size:0.75rem;color:var(--muted);margin-top:2px;"></div>
+      </div>
+    </div>
+    <div id="memberModalStatus" style="margin-bottom:14px;"></div>
+    <div id="memberModalFotoWrap" style="display:none;">
+      <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📷 Foto Selfie</div>
+      <img id="memberModalFoto" src="" alt="Foto" style="width:100%;border-radius:10px;border:1px solid var(--glass-border);">
+    </div>
+    <div id="memberModalNoFoto" style="display:none;text-align:center;padding:16px 0;color:var(--muted);font-size:0.85rem;">Tidak ada foto</div>
+  </div>
+</div>
+
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -1062,9 +1086,13 @@ function renderTabel() {
   const members = _members;
   const inp = document.getElementById('tabelDate');
   const dateISO = (inp && inp.value) ? inp.value : new Date().toISOString().slice(0,10);
-  const [y,m,d] = dateISO.split('-');
-  const dateLocal = new Date(+y, +m-1, +d).toLocaleDateString('id-ID');
-  const records = _records.filter(r => r.tanggal === dateLocal);
+  const [y,m,d] = dateISO.split('-').map(Number);
+  const dateLocal = new Date(y, m-1, d).toLocaleDateString('id-ID');
+  // Filter by tanggalISO first (more reliable), fallback to tanggal locale
+  const records = _records.filter(r => {
+    if (r.tanggalISO) return r.tanggalISO === dateISO;
+    return r.tanggal === dateLocal;
+  });
   const recMap = {};
   records.forEach(r => recMap[r.nama] = r);
 
@@ -1084,6 +1112,9 @@ function renderTabel() {
   tabelEmpty.style.display = 'none';
   tabelTableWrap.style.display = '';
   tabelCards.style.display = '';
+  // Show mobile hint
+  const mobileHint = document.getElementById('tabelMobileHint');
+  if (mobileHint) mobileHint.style.display = window.innerWidth <= 640 ? 'block' : 'none';
 
   const sorted = [...members];
   let cHadir = 0, cTerlambat = 0, cBelum = 0;
@@ -1111,7 +1142,7 @@ function renderTabel() {
       <td style="color:var(--muted);">${i+1}</td>
       <td><div style="display:flex;align-items:center;gap:8px;">
         <div class="member-avatar" style="width:28px;height:28px;font-size:0.7rem;${!rec?'background:rgba(100,116,139,0.3);':''}">${name[0].toUpperCase()}</div>
-        <span style="${!rec?'color:var(--muted);':''}">${name}</span>
+        <span onclick="openMemberDetail('${esc(name)}')" style="cursor:pointer;${!rec?'color:var(--muted);':''}border-bottom:1px dotted ${rec?'rgba(56,189,248,0.4)':'rgba(100,116,139,0.3)'};" title="Tap untuk lihat detail">${name}${rec?.foto?' <span style="font-size:0.65rem;color:var(--accent);" title="Ada foto">📷</span>':''}</span>
       </div></td>
       <td><span class="${statusClass}">${statusIcon} ${statusLabel}</span></td>
       <td style="font-variant-numeric:tabular-nums;color:${rec?'var(--text)':'var(--muted)'};">${rec ? rec.jam : '—'}</td>
@@ -1129,7 +1160,7 @@ function renderTabel() {
       <div class="rc-top">
         <div class="rc-name">
           <div class="member-avatar" style="width:30px;height:30px;font-size:0.72rem;${!rec?'background:rgba(100,116,139,0.3);':''}">${name[0].toUpperCase()}</div>
-          <span style="${!rec?'color:var(--muted);':''}">${name}</span>
+          <span onclick="openMemberDetail('${esc(name)}')" style="cursor:pointer;${!rec?'color:var(--muted);':''}border-bottom:1px dotted ${rec?'rgba(56,189,248,0.4)':'rgba(100,116,139,0.3)'};">${name}</span>
         </div>
         <span class="badge ${statusClass}" style="${statusStyle}">${rec ? (rec.status==='Hadir'?'✅':'⏰') : '⭕'} ${statusLabel}</span>
       </div>
@@ -1222,10 +1253,10 @@ function renderTodayList() {
   if (!list) return;
   if (!recs.length) { list.innerHTML = `<div class="empty-state" style="padding:20px 0;"><div class="icon">🌅</div><p>Belum ada absensi hari ini</p></div>`; return; }
   list.innerHTML = recs.map(r => `
-    <div class="member-item">
+    <div class="member-item" onclick="openMemberDetail('${esc(r.nama)}')" style="cursor:pointer;" title="Tap untuk lihat detail">
       <div class="member-name">
         <div class="member-avatar">${r.nama[0].toUpperCase()}</div>
-        <div><div>${r.nama}</div><div style="font-size:0.72rem;color:var(--muted);">${r.jam}</div></div>
+        <div><div style="display:flex;align-items:center;gap:6px;">${r.nama}<span style="font-size:0.65rem;color:var(--accent);opacity:0.7;">ⓘ</span></div><div style="font-size:0.72rem;color:var(--muted);">${r.jam}</div></div>
       </div>
       <span class="badge badge-${r.status==='Hadir'?'hadir':'terlambat'}">${r.status}</span>
     </div>`).join('');
@@ -1483,6 +1514,45 @@ window.openPhoto = function(name, src) {
 }
 window.closeModal = function() { document.getElementById('photoModal').classList.remove('open'); }
 document.getElementById('photoModal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+
+window.openMemberDetail = function(name) {
+  // Cari rekap hari ini untuk anggota ini (dari tabelDate jika ada, atau hari ini)
+  const inp = document.getElementById('tabelDate');
+  const dateISO = (inp && inp.value) ? inp.value : new Date().toISOString().slice(0,10);
+  const [y,m,d] = dateISO.split('-');
+  const dateLocal = new Date(+y, +m-1, +d).toLocaleDateString('id-ID');
+  // Coba cari dari tanggal yang dipilih, fallback ke hari ini
+  let rec = _records.find(r => r.nama === name && r.tanggal === dateLocal);
+  if (!rec) {
+    const today = new Date().toLocaleDateString('id-ID');
+    rec = _records.find(r => r.nama === name && r.tanggal === today);
+  }
+
+  const modal = document.getElementById('memberModal');
+  document.getElementById('memberModalAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('memberModalName').textContent = name;
+  document.getElementById('memberModalDate').textContent = rec ? `📅 ${rec.tanggal}  🕐 ${rec.jam}` : '—';
+
+  if (rec) {
+    const isHadir = rec.status === 'Hadir';
+    document.getElementById('memberModalStatus').innerHTML = `<span class="badge badge-${isHadir?'hadir':'terlambat'}" style="font-size:0.85rem;padding:5px 14px;">${isHadir?'✅':'⏰'} ${rec.status}</span>`;
+    if (rec.foto) {
+      document.getElementById('memberModalFotoWrap').style.display = 'block';
+      document.getElementById('memberModalNoFoto').style.display = 'none';
+      document.getElementById('memberModalFoto').src = rec.foto;
+    } else {
+      document.getElementById('memberModalFotoWrap').style.display = 'none';
+      document.getElementById('memberModalNoFoto').style.display = 'block';
+    }
+  } else {
+    document.getElementById('memberModalStatus').innerHTML = `<span class="badge" style="background:rgba(100,116,139,0.1);color:var(--muted);border:1px solid rgba(100,116,139,0.2);font-size:0.85rem;padding:5px 14px;">⭕ Belum Absen</span>`;
+    document.getElementById('memberModalFotoWrap').style.display = 'none';
+    document.getElementById('memberModalNoFoto').style.display = 'block';
+  }
+  modal.classList.add('open');
+}
+window.closeMemberModal = function() { document.getElementById('memberModal').classList.remove('open'); }
+document.getElementById('memberModal').addEventListener('click', function(e){ if(e.target===this) closeMemberModal(); });
 
 // ===== TOAST =====
 window.toast = function(msg, type='info') {
