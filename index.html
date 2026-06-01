@@ -598,14 +598,10 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
   .absensi-wrap { padding: 16px 12px 80px; }
   .table-wrap { display: none; }
   .record-cards { display: block; }
-  /* Tabel absensi tetap tampil di mobile, bukan cards */
-  #tabelTableWrap { display: block !important; overflow-x: auto; max-height: calc(100vh - 220px); }
-  #tabelCards { display: none !important; }
-  /* Mobile: sembunyikan kolom foto di tabel, tapi tampilkan di card via openMemberDetail */
-  #tabelTableWrap th:nth-child(5),
-  #tabelTableWrap td:nth-child(5) { display: none; }
-  /* Tampilkan card di bawah tabel di mobile jika ada foto */
-  #tabelFotoCards { display: block; }
+  /* Tabel absensi: di mobile pakai cards agar foto bisa tampil */
+  #tabelTableWrap { display: none !important; }
+  #tabelCards { display: block !important; }
+  #tabelMobileHint { display: none !important; }
   .records-filters { gap: 7px; }
   .records-filters input, .records-filters select { min-width: 0; }
   .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -755,7 +751,6 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
         <input type="password" id="adminPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <button class="btn btn-primary" onclick="doLogin()">Masuk</button>
-      <p style="text-align:center;margin-top:10px;font-size:0.75rem;color:var(--muted);">Default: <strong style="color:var(--warn);">admin123</strong></p>
     </div>
   </div>
 
@@ -952,7 +947,7 @@ const COL_CONFIG   = 'config';
 // ===== IN-MEMORY CACHE (realtime) =====
 let _members = [];
 let _records = [];
-let _settings = { password: 'admin123', ontime: '11:00' };
+let _settings = { password: 'Harmoni123', ontime: '11:00' };
 let isLoggedIn = false;
 let _unsubMembers = null;
 let _unsubRecords = null;
@@ -972,6 +967,11 @@ async function initFirebase() {
     const settingsDoc = await getDoc(doc(db, COL_CONFIG, DOC_SETTINGS));
     if (settingsDoc.exists()) {
       _settings = { ..._settings, ...settingsDoc.data() };
+      // Migrate: jika password masih nilai lama, update ke password baru
+      if (_settings.password === 'admin123') {
+        _settings.password = 'Harmoni123';
+        await setDoc(doc(db, COL_CONFIG, DOC_SETTINGS), _settings);
+      }
     } else {
       // First run: create default settings
       await setDoc(doc(db, COL_CONFIG, DOC_SETTINGS), _settings);
@@ -1156,16 +1156,18 @@ function renderTabel() {
     const statusLabel = rec ? rec.status : 'Belum Absen';
     const statusClass = rec ? (rec.status === 'Hadir' ? 'badge-hadir' : 'badge-terlambat') : '';
     const statusStyle = !rec ? 'background:rgba(100,116,139,0.1);color:var(--muted);border:1px solid rgba(100,116,139,0.2);' : '';
-    return `<div class="record-card" style="${!rec?'opacity:0.7;':''}">
+    return `<div class="record-card" style="${!rec?'opacity:0.6;':''}">
       <div class="rc-top">
         <div class="rc-name">
           <div class="member-avatar" style="width:30px;height:30px;font-size:0.72rem;${!rec?'background:rgba(100,116,139,0.3);':''}">${name[0].toUpperCase()}</div>
-          <span onclick="openMemberDetail('${esc(name)}')" style="cursor:pointer;${!rec?'color:var(--muted);':''}border-bottom:1px dotted ${rec?'rgba(56,189,248,0.4)':'rgba(100,116,139,0.3)'};">${name}</span>
+          <div>
+            <div style="font-size:0.95rem;font-weight:700;${!rec?'color:var(--muted);':''}">${name}</div>
+            ${rec ? `<div style="font-size:0.72rem;color:var(--muted);">🕐 ${rec.jam}</div>` : ''}
+          </div>
         </div>
         <span class="badge ${statusClass}" style="${statusStyle}">${rec ? (rec.status==='Hadir'?'✅':'⏰') : '⭕'} ${statusLabel}</span>
       </div>
-      ${rec ? `<div class="rc-meta"><span>🕐 ${rec.jam}</span></div>` : ''}
-      ${rec?.foto ? `<div class="rc-actions"><button class="btn btn-ghost btn-xs" onclick="openPhoto('${esc(name)}','${rec.foto}')">🖼 Foto</button></div>` : ''}
+      ${rec?.foto ? `<div style="margin-top:10px;"><img src="${rec.foto}" onclick="openPhoto('${esc(name)}','${rec.foto}')" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;border:1px solid var(--glass-border);cursor:pointer;" title="Tap untuk perbesar"></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -1500,7 +1502,7 @@ window.resetAll = async function() {
     const batch = writeBatch(db);
     membersSnap.docs.forEach(d => batch.delete(d.ref));
     recordsSnap.docs.forEach(d => batch.delete(d.ref));
-    _settings = { password: 'admin123', ontime: '11:00' };
+    _settings = { password: 'Harmoni123', ontime: '11:00' };
     batch.set(doc(db, COL_CONFIG, DOC_SETTINGS), _settings);
     await batch.commit();
     doLogout();
