@@ -428,6 +428,51 @@ tr:last-child td { border-bottom:none; }
 tr:hover td { background: rgba(255,255,255,0.02); }
 tbody { background: rgba(0,0,0,0.15); }
 .thumb-img { width:40px; height:40px; border-radius:7px; object-fit:cover; cursor:pointer; border:1px solid var(--glass-border); transition:transform 0.15s; }
+
+/* Sticky tabel absensi */
+#tabelTableWrap {
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+  overflow-x: auto;
+}
+#tabelTableWrap table { border-collapse: separate; border-spacing: 0; }
+#tabelTableWrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #0d1017;
+  border-bottom: 1px solid var(--glass-border);
+}
+#tabelTableWrap thead th:first-child {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  background: #0d1017;
+}
+#tabelTableWrap thead th:nth-child(2) {
+  position: sticky;
+  top: 0;
+  left: 40px;
+  z-index: 4;
+  background: #0d1017;
+}
+#tabelTableWrap tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #0d1017;
+}
+#tabelTableWrap tbody td:nth-child(2) {
+  position: sticky;
+  left: 40px;
+  z-index: 1;
+  background: #0d1017;
+}
+#tabelTableWrap tbody tr:hover td:first-child,
+#tabelTableWrap tbody tr:hover td:nth-child(2) {
+  background: #111520;
+}
 .thumb-img:hover { transform:scale(1.12); }
 
 /* Mobile record cards */
@@ -753,7 +798,10 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,
         <button class="btn btn-primary" style="margin-top:10px;" onclick="addBatchMembers()">Tambah Semua</button>
       </div>
 
-      <div class="section-label" style="margin-bottom:10px;">Daftar Anggota (<span id="memberCount">0</span>)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="section-label">Daftar Anggota (<span id="memberCount">0</span>)</div>
+        <button class="btn btn-danger btn-xs" onclick="clearAllMembers()">🗑 Hapus Semua Nama</button>
+      </div>
       <div id="memberList" class="member-list"></div>
     </div>
 
@@ -902,7 +950,7 @@ async function initFirebase() {
 
     // Realtime: members
     _unsubMembers = onSnapshot(
-      query(collection(db, COL_MEMBERS), orderBy('name')),
+      query(collection(db, COL_MEMBERS), orderBy('order', 'asc')),
       (snap) => {
         _members = snap.docs.map(d => d.data().name);
         renderSelectNama();
@@ -976,10 +1024,8 @@ function updateClock() {
   const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   document.getElementById('liveDate').textContent =
     `${days[now.getDay()]}, ${now.toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'})}`;
-  const tj = document.getElementById('inputJam');
-  if (!tj.dataset.manual) tj.value = now.toTimeString().slice(0,5);
 }
-document.getElementById('inputJam').addEventListener('change', function(){ this.dataset.manual='1'; });
+
 setInterval(updateClock, 1000); updateClock();
 
 // ===== PAGE NAV =====
@@ -1009,7 +1055,8 @@ function initTabel() {
 
 function renderTabel() {
   const members = _members;
-  const dateISO = document.getElementById('tabelDate')?.value || new Date().toISOString().slice(0,10);
+  const inp = document.getElementById('tabelDate');
+  const dateISO = (inp && inp.value) ? inp.value : new Date().toISOString().slice(0,10);
   const [y,m,d] = dateISO.split('-');
   const dateLocal = new Date(+y, +m-1, +d).toLocaleDateString('id-ID');
   const records = _records.filter(r => r.tanggal === dateLocal);
@@ -1033,7 +1080,7 @@ function renderTabel() {
   tabelTableWrap.style.display = '';
   tabelCards.style.display = '';
 
-  const sorted = [...members].sort();
+  const sorted = [...members];
   let cHadir = 0, cTerlambat = 0, cBelum = 0;
   sorted.forEach(name => {
     const rec = recMap[name];
@@ -1091,7 +1138,7 @@ function renderSelectNama() {
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">— Pilih Nama —</option>';
-  [..._members].sort().forEach(n => {
+  _members.forEach(n => {
     const o = document.createElement('option');
     o.value = n; o.textContent = n;
     if (n === cur) o.selected = true;
@@ -1149,7 +1196,7 @@ window.submitAbsensi = async function() {
     document.getElementById('photoPreview').style.display = 'none';
     document.querySelector('.pu-icon').style.display = 'block';
     document.querySelectorAll('.pu-text').forEach(el => el.style.display = 'block');
-    delete document.getElementById('inputJam').dataset.manual;
+    document.getElementById('inputJam').value = '';
   } catch(err) {
     console.error(err);
     toast('Gagal menyimpan. Cek koneksi.', 'error');
@@ -1231,7 +1278,7 @@ window.addOneMember = async function() {
   if (!val) { toast('Masukkan nama', 'error'); return; }
   if (_members.includes(val)) { toast('Nama sudah ada', 'error'); return; }
   try {
-    await addDoc(collection(db, COL_MEMBERS), { name: val });
+    await addDoc(collection(db, COL_MEMBERS), { name: val, order: Date.now() });
     document.getElementById('newMemberName').value = '';
     toast(`${val} ditambahkan ✅`, 'success');
   } catch(e) { toast('Gagal menambahkan anggota', 'error'); }
@@ -1242,10 +1289,11 @@ window.addBatchMembers = async function() {
   if (!lines.length) { toast('Masukkan nama di textarea', 'error'); return; }
   const batch = writeBatch(db);
   let added = 0;
-  lines.forEach(n => {
+  const baseOrder = Date.now();
+  lines.forEach((n, idx) => {
     if (n && !_members.includes(n)) {
       const ref = doc(collection(db, COL_MEMBERS));
-      batch.set(ref, { name: n });
+      batch.set(ref, { name: n, order: baseOrder + idx });
       added++;
     }
   });
@@ -1264,6 +1312,19 @@ window.deleteMember = async function(name) {
     if (docToDelete) await deleteDoc(doc(db, COL_MEMBERS, docToDelete.id));
     toast(`${name} dihapus`, 'info');
   } catch(e) { toast('Gagal hapus anggota', 'error'); }
+}
+
+window.clearAllMembers = async function() {
+  if (!_members.length) { toast('Belum ada anggota', 'error'); return; }
+  if (!confirm(`Hapus SEMUA ${_members.length} anggota?`)) return;
+  if (!confirm('Yakin? Data anggota akan hilang semua!')) return;
+  try {
+    const snap = await getDocs(collection(db, COL_MEMBERS));
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    toast('Semua anggota dihapus', 'info');
+  } catch(e) { toast('Gagal hapus semua anggota', 'error'); }
 }
 
 // ===== RECORDS =====
